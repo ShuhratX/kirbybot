@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Buyurtma berish</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --sky: #0ea5e9;
+    --sky-dark: #0284c7;
+    --sky-light: #e0f2fe;
+    --bg: #ffffff;
+    --surface: #f0f9ff;
+    --text: #0f172a;
+    --muted: #64748b;
+    --border: #bae6fd;
+    --radius: 16px;
+    --shadow: 0 4px 20px rgba(14,165,233,.15);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Nunito', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* ── Steps ── */
+  .step { display: none; padding: 16px; min-height: 100vh; flex-direction: column; }
+  .step.active { display: flex; }
+
+  /* ── Header ── */
+  .step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .step-header h2 { font-size: 1.3rem; font-weight: 800; color: var(--sky-dark); }
+  .back-btn { background: var(--sky-light); border: none; border-radius: 10px; width: 36px; height: 36px;
+              cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; }
+
+  /* ── Tab bar ── */
+  .tabs { display: flex; background: var(--sky-light); border-radius: 12px; padding: 4px; gap: 4px; margin-bottom: 16px; }
+  .tab { flex: 1; padding: 8px; border: none; border-radius: 9px; background: transparent;
+         font-family: inherit; font-weight: 700; font-size: .85rem; cursor: pointer; color: var(--muted); transition: all .2s; }
+  .tab.active { background: var(--sky); color: #fff; box-shadow: var(--shadow); }
+
+  /* ── Product grid ── */
+  .products-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .product-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius);
+                  overflow: hidden; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+  .product-card:active { transform: scale(.97); }
+  .product-card img { width: 100%; height: 120px; object-fit: cover; }
+  .product-info { padding: 10px; }
+  .product-name { font-weight: 700; font-size: .9rem; margin-bottom: 4px; }
+  .product-price { color: var(--sky-dark); font-weight: 800; font-size: .95rem; }
+  .product-qty { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .qty-btn { width: 28px; height: 28px; border-radius: 8px; border: none; background: var(--sky);
+             color: #fff; font-size: 1.1rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .qty-num { font-weight: 800; min-width: 20px; text-align: center; }
+
+  /* ── Service card ── */
+  .service-card { background: linear-gradient(135deg, var(--sky) 0%, var(--sky-dark) 100%);
+                  border-radius: var(--radius); padding: 24px; color: #fff; text-align: center;
+                  cursor: pointer; transition: transform .15s; margin-top: 12px; }
+  .service-card:active { transform: scale(.98); }
+  .service-card h3 { font-size: 1.2rem; font-weight: 800; margin-bottom: 6px; }
+  .service-card p { font-size: .85rem; opacity: .85; }
+
+  /* ── Cart bar ── */
+  .cart-bar { position: fixed; bottom: 16px; left: 16px; right: 16px;
+              background: var(--sky); border-radius: 14px; padding: 14px 18px;
+              display: flex; align-items: center; justify-content: space-between;
+              color: #fff; font-weight: 800; box-shadow: var(--shadow);
+              cursor: pointer; transition: transform .15s; z-index: 50; }
+  .cart-bar:active { transform: scale(.98); }
+  .cart-bar.hidden { display: none; }
+
+  /* ── Cart items ── */
+  .cart-item { display: flex; align-items: center; gap: 12px; padding: 12px;
+               background: var(--surface); border-radius: 12px; margin-bottom: 8px; }
+  .cart-item img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; }
+  .cart-item-info { flex: 1; }
+  .cart-item-name { font-weight: 700; font-size: .9rem; }
+  .cart-item-price { color: var(--sky-dark); font-weight: 700; font-size: .85rem; }
+  .cart-total { background: var(--sky-light); border-radius: 12px; padding: 14px;
+                display: flex; justify-content: space-between; font-weight: 800; margin: 12px 0; }
+
+  /* ── Form fields ── */
+  .field-label { font-weight: 700; font-size: .9rem; color: var(--muted); margin-bottom: 6px; margin-top: 14px; }
+  .field-input { width: 100%; padding: 12px 14px; border: 2px solid var(--border); border-radius: 12px;
+                 font-family: inherit; font-size: .95rem; outline: none; transition: border-color .2s;
+                 background: var(--surface); }
+  .field-input:focus { border-color: var(--sky); }
+
+  /* ── Map ── */
+  #map { width: 100%; height: 280px; border-radius: var(--radius); border: 2px solid var(--border);
+         margin: 12px 0; z-index: 1; }
+  .map-hint { font-size: .8rem; color: var(--muted); text-align: center; margin-bottom: 8px; }
+
+  /* ── Duration chips ── */
+  .duration-grid { display: flex; gap: 10px; margin: 12px 0; }
+  .dur-chip { flex: 1; padding: 14px 8px; border: 2px solid var(--border); border-radius: 12px;
+              text-align: center; font-weight: 800; font-size: .9rem; cursor: pointer;
+              background: var(--surface); transition: all .15s; }
+  .dur-chip.selected { border-color: var(--sky); background: var(--sky); color: #fff; }
+
+  /* ── Payment card ── */
+  .payment-card { background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);
+                  border-radius: 18px; padding: 22px; color: #fff; margin: 12px 0; }
+  .payment-card .card-num { font-size: 1.25rem; font-weight: 800; letter-spacing: 2px; margin: 8px 0; }
+  .payment-card .card-owner { font-size: .85rem; opacity: .8; }
+  .copy-btn { background: rgba(255,255,255,.25); border: none; border-radius: 8px;
+              color: #fff; padding: 4px 10px; font-size: .8rem; cursor: pointer; margin-top: 8px; }
+
+  /* ── Screenshot upload ── */
+  .upload-area { border: 2.5px dashed var(--border); border-radius: var(--radius);
+                 padding: 28px; text-align: center; cursor: pointer;
+                 background: var(--surface); transition: border-color .2s; }
+  .upload-area:hover { border-color: var(--sky); }
+  .upload-area.has-file { border-color: #22c55e; background: #f0fdf4; }
+  .upload-icon { font-size: 2.5rem; margin-bottom: 8px; }
+  .upload-text { font-weight: 700; color: var(--muted); font-size: .9rem; }
+  #screenshot-input { display: none; }
+  #preview-img { width: 100%; border-radius: 12px; margin-top: 10px; display: none; }
+
+  /* ── Primary button ── */
+  .btn-primary { width: 100%; padding: 15px; background: linear-gradient(135deg, var(--sky) 0%, var(--sky-dark) 100%);
+                 color: #fff; border: none; border-radius: 14px; font-family: inherit;
+                 font-size: 1rem; font-weight: 800; cursor: pointer; transition: transform .15s, box-shadow .15s;
+                 box-shadow: var(--shadow); margin-top: 12px; }
+  .btn-primary:active { transform: scale(.98); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* ── Success screen ── */
+  .success-screen { display: flex; flex-direction: column; align-items: center; justify-content: center;
+                    min-height: 100vh; padding: 24px; text-align: center; }
+  .success-icon { font-size: 5rem; margin-bottom: 16px; animation: pop .5s ease; }
+  @keyframes pop { 0%{transform:scale(0)} 80%{transform:scale(1.1)} 100%{transform:scale(1)} }
+  .success-title { font-size: 1.5rem; font-weight: 800; color: var(--sky-dark); margin-bottom: 8px; }
+  .success-sub { color: var(--muted); font-size: .95rem; }
+</style>
+</head>
+<body>
+<script>
+  const tg = window.Telegram?.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+
+  const LANG = "{{ lang }}";
+  const USER_ID = {{ user_id }};
+  const PRODUCTS = {{ products | tojson }};
+  const PAYMENT_CARD = "{{ payment_card }}";
+  const PAYMENT_OWNER = "{{ payment_owner }}";
+
+  const TX = {
+    uz: {
+      products: "Mahsulotlar", service: "Servis",
+      cart: "Savat", total: "Jami",
+      order: "Buyurtma berish", add: "Qo'shish",
+      phone: "Telefon raqam", phone_ph: "+998 90 123 45 67",
+      location: "Lokatsiya", map_hint: "Xaritada joy tanlang",
+      duration: "Muddat tanlang",
+      d1: "1 kun", d3: "3 kun", d5: "5 kun",
+      d1_val: "1 kun", d3_val: "3 kun", d5_val: "5 kun",
+      payment: "To'lov ma'lumotlari",
+      screenshot: "To'lov skrinshotini yuklang",
+      screenshot_hint: "Rasmni tanlash uchun bosing",
+      comment: "Ixtiyoriy izoh",
+      comment_ph: "Izoh (ixtiyoriy)...",
+      send: "Buyurtmani yuborish",
+      success_title: "Buyurtma qabul qilindi! ✅",
+      success_sub: "Tez orada siz bilan bog'lanamiz.",
+      copy: "Nusxa olish", copied: "Nusxalandi!",
+      service_title: "Servis xizmati", service_desc: "Mahsulot buyurtma qilmasdan servis so'rash",
+      order_service: "Servis so'rash",
+      items_empty: "Savat bo'sh",
+    },
+    ru: {
+      products: "Товары", service: "Сервис",
+      cart: "Корзина", total: "Итого",
+      order: "Оформить заказ", add: "Добавить",
+      phone: "Номер телефона", phone_ph: "+998 90 123 45 67",
+      location: "Местоположение", map_hint: "Выберите место на карте",
+      duration: "Выберите срок",
+      d1: "1 день", d3: "3 дня", d5: "5 дней",
+      d1_val: "1 день", d3_val: "3 дня", d5_val: "5 дней",
+      payment: "Данные для оплаты",
+      screenshot: "Загрузите скриншот оплаты",
+      screenshot_hint: "Нажмите для выбора",
+      comment: "Необязательный комментарий",
+      comment_ph: "Комментарий (необязательно)...",
+      send: "Отправить заказ",
+      success_title: "Заказ принят! ✅",
+      success_sub: "Скоро мы с вами свяжемся.",
+      copy: "Копировать", copied: "Скопировано!",
+      service_title: "Сервисное обслуживание", service_desc: "Запросить сервис без заказа товаров",
+      order_service: "Запросить сервис",
+      items_empty: "Корзина пуста",
+    }
+  };
+  const T = TX[LANG] || TX.uz;
+
+  let cart = {};
+  let orderType = "product";
+  let selectedDuration = null;
+  let markerLat = null, markerLng = null;
+  let screenshotUrl = null;
+  let map = null, marker = null;
+</script>
+
+<!-- ═══════════════════ STEP 1: PRODUCTS ═══════════════════ -->
+<div class="step active" id="step-products">
+  <div class="step-header">
+    <h2 id="h-products"></h2>
+  </div>
+  <div class="tabs">
+    <button class="tab active" id="tab-products" onclick="switchTab('products')"></button>
+    <button class="tab" id="tab-service" onclick="switchTab('service')"></button>
+  </div>
+
+  <div id="panel-products">
+    <div class="products-grid" id="products-grid"></div>
+  </div>
+
+  <div id="panel-service" style="display:none">
+    <div class="service-card" onclick="startServiceOrder()">
+      <div style="font-size:2.5rem;margin-bottom:10px">🔧</div>
+      <h3 id="svc-title"></h3>
+      <p id="svc-desc"></p>
+      <button class="btn-primary" style="margin-top:16px;background:rgba(255,255,255,.2);border:2px solid #fff" id="svc-btn"></button>
+    </div>
+  </div>
+
+  <div id="cart-bar" class="cart-bar hidden" onclick="goToCart()">
+    <span id="cart-label"></span>
+    <span id="cart-total-bar"></span>
+  </div>
+</div>
+
+<!-- ═══════════════════ STEP 2: CART ═══════════════════ -->
+<div class="step" id="step-cart">
+  <div class="step-header">
+    <button class="back-btn" onclick="goBack('step-cart','step-products')">←</button>
+    <h2 id="h-cart"></h2>
+  </div>
+  <div id="cart-items"></div>
+  <div class="cart-total">
+    <span id="ct-label"></span>
+    <span id="ct-value"></span>
+  </div>
+  <button class="btn-primary" id="btn-to-phone" onclick="goStep('step-cart','step-phone')"></button>
+</div>
+
+<!-- ═══════════════════ STEP 3: PHONE ═══════════════════ -->
+<div class="step" id="step-phone">
+  <div class="step-header">
+    <!-- FIX #6: Back target depends on orderType (product→cart, service→products) -->
+    <button class="back-btn" onclick="phoneBack()">←</button>
+    <h2 id="h-phone"></h2>
+  </div>
+  <div class="field-label" id="lbl-phone"></div>
+  <input class="field-input" id="phone-input" type="tel" maxlength="20">
+  <button class="btn-primary" id="btn-phone-next" onclick="phoneNext()"></button>
+</div>
+
+<!-- ═══════════════════ STEP 4: LOCATION ═══════════════════ -->
+<div class="step" id="step-location">
+  <div class="step-header">
+    <button class="back-btn" onclick="goBack('step-location','step-phone')">←</button>
+    <h2 id="h-location"></h2>
+  </div>
+  <p class="map-hint" id="lbl-map-hint"></p>
+  <div id="map"></div>
+  <div id="loc-coords" style="font-size:.8rem;color:var(--muted);text-align:center;margin-bottom:8px"></div>
+  <button class="btn-primary" id="btn-loc-next" onclick="locationNext()"></button>
+</div>
+
+<!-- ═══════════════════ STEP 5: DURATION ═══════════════════ -->
+<div class="step" id="step-duration">
+  <div class="step-header">
+    <button class="back-btn" onclick="goBack('step-duration','step-location')">←</button>
+    <h2 id="h-duration"></h2>
+  </div>
+  <div class="duration-grid">
+    <div class="dur-chip" id="dur-1" onclick="selectDur('1','dur-1')"></div>
+    <div class="dur-chip" id="dur-3" onclick="selectDur('3','dur-3')"></div>
+    <div class="dur-chip" id="dur-5" onclick="selectDur('5','dur-5')"></div>
+  </div>
+  <button class="btn-primary" id="btn-dur-next" onclick="durationNext()"></button>
+</div>
+
+<!-- ═══════════════════ STEP 6: PAYMENT ═══════════════════ -->
+<div class="step" id="step-payment">
+  <div class="step-header">
+    <button class="back-btn" onclick="goBack('step-payment','step-duration')">←</button>
+    <h2 id="h-payment"></h2>
+  </div>
+  <div class="payment-card">
+    <div class="card-owner" id="p-owner"></div>
+    <div class="card-num" id="p-num"></div>
+    <button class="copy-btn" id="p-copy" onclick="copyCard()"></button>
+  </div>
+  <div class="field-label" id="lbl-screenshot"></div>
+  <div class="upload-area" id="upload-area" onclick="document.getElementById('screenshot-input').click()">
+    <div class="upload-icon">📷</div>
+    <div class="upload-text" id="upload-text"></div>
+    <img id="preview-img" src="" alt="preview">
+  </div>
+  <input type="file" id="screenshot-input" accept="image/*" onchange="handleScreenshot(this)">
+  <div class="field-label" id="lbl-comment"></div>
+  <textarea class="field-input" id="comment-input" rows="3"></textarea>
+  <button class="btn-primary" id="btn-send" onclick="submitOrder()"></button>
+</div>
+
+<!-- ═══════════════════ SUCCESS ═══════════════════ -->
+<div id="step-success" style="display:none">
+  <div class="success-screen">
+    <div class="success-icon">🎉</div>
+    <div class="success-title" id="s-title"></div>
+    <div class="success-sub" id="s-sub"></div>
+  </div>
+</div>
+
+<script>
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  // Translate static labels
+  document.getElementById("h-products").textContent = T.products;
+  document.getElementById("tab-products").textContent = T.products;
+  document.getElementById("tab-service").textContent = T.service;
+  document.getElementById("svc-title").textContent = T.service_title;
+  document.getElementById("svc-desc").textContent = T.service_desc;
+  document.getElementById("svc-btn").textContent = T.order_service;
+  document.getElementById("h-cart").textContent = T.cart;
+  document.getElementById("ct-label").textContent = T.total + ":";
+  document.getElementById("btn-to-phone").textContent = T.order;
+  document.getElementById("h-phone").textContent = T.phone;
+  document.getElementById("lbl-phone").textContent = T.phone;
+  document.getElementById("phone-input").placeholder = T.phone_ph;
+  document.getElementById("btn-phone-next").textContent = "→ " + T.location;
+  document.getElementById("h-location").textContent = T.location;
+  document.getElementById("lbl-map-hint").textContent = T.map_hint;
+  document.getElementById("btn-loc-next").textContent = "→ " + T.duration;
+  document.getElementById("h-duration").textContent = T.duration;
+  document.getElementById("dur-1").textContent = T.d1;
+  document.getElementById("dur-3").textContent = T.d3;
+  document.getElementById("dur-5").textContent = T.d5;
+  document.getElementById("btn-dur-next").textContent = "→ " + T.payment;
+  document.getElementById("h-payment").textContent = T.payment;
+  document.getElementById("p-owner").textContent = PAYMENT_OWNER;
+  document.getElementById("p-num").textContent = PAYMENT_CARD;
+  document.getElementById("p-copy").textContent = T.copy;
+  document.getElementById("lbl-screenshot").textContent = T.screenshot;
+  document.getElementById("upload-text").textContent = T.screenshot_hint;
+  document.getElementById("lbl-comment").textContent = T.comment;
+  document.getElementById("comment-input").placeholder = T.comment_ph;
+  document.getElementById("btn-send").textContent = T.send;
+  document.getElementById("s-title").textContent = T.success_title;
+  document.getElementById("s-sub").textContent = T.success_sub;
+
+  renderProducts();
+});
+
+// ── Products ──────────────────────────────────────────────────────────────────
+function renderProducts() {
+  const grid = document.getElementById("products-grid");
+  grid.innerHTML = "";
+  PRODUCTS.forEach(p => {
+    const name = LANG === "ru" ? p.name_ru : p.name_uz;
+    const qty = cart[p.id] || 0;
+    const card = document.createElement("div");
+    card.className = "product-card";
+    card.id = "card-" + p.id;
+    card.innerHTML = `
+      <img src="${p.image_url}" alt="${name}" onerror="this.src='https://via.placeholder.com/300x200/0ea5e9/fff?text=?'">
+      <div class="product-info">
+        <div class="product-name">${name}</div>
+        <div class="product-price">${fmt(p.price)}</div>
+        <div class="product-qty">
+          <button class="qty-btn" onclick="changeQty(${p.id},-1,event)">−</button>
+          <span class="qty-num" id="qty-${p.id}">${qty}</span>
+          <button class="qty-btn" onclick="changeQty(${p.id},1,event)">+</button>
+        </div>
+      </div>`;
+    grid.appendChild(card);
+  });
+  updateCartBar();
+}
+
+function changeQty(id, delta, e) {
+  e.stopPropagation();
+  cart[id] = Math.max(0, (cart[id] || 0) + delta);
+  if (cart[id] === 0) delete cart[id];
+  document.getElementById("qty-" + id).textContent = cart[id] || 0;
+  updateCartBar();
+}
+
+function updateCartBar() {
+  const total = cartTotal();
+  const bar = document.getElementById("cart-bar");
+  if (total > 0) {
+    bar.classList.remove("hidden");
+    document.getElementById("cart-label").textContent = `🛒 ${T.cart} (${Object.values(cart).reduce((a,b)=>a+b,0)})`;
+    document.getElementById("cart-total-bar").textContent = fmt(total);
+  } else {
+    bar.classList.add("hidden");
+  }
+}
+
+function cartTotal() {
+  return PRODUCTS.reduce((s, p) => s + (cart[p.id] || 0) * p.price, 0);
+}
+
+function fmt(n) {
+  return n.toLocaleString("uz-UZ") + " so'm";
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById("panel-products").style.display = tab === "products" ? "" : "none";
+  document.getElementById("panel-service").style.display = tab === "service" ? "" : "none";
+  document.getElementById("tab-products").classList.toggle("active", tab === "products");
+  document.getElementById("tab-service").classList.toggle("active", tab === "service");
+}
+
+// ── Cart ──────────────────────────────────────────────────────────────────────
+function goToCart() {
+  const items = document.getElementById("cart-items");
+  items.innerHTML = "";
+  let total = 0;
+  PRODUCTS.forEach(p => {
+    const qty = cart[p.id];
+    if (!qty) return;
+    const name = LANG === "ru" ? p.name_ru : p.name_uz;
+    const sub = qty * p.price;
+    total += sub;
+    items.innerHTML += `
+      <div class="cart-item">
+        <img src="${p.image_url}" alt="${name}" onerror="this.src='https://via.placeholder.com/56x56/0ea5e9/fff?text=?'">
+        <div class="cart-item-info">
+          <div class="cart-item-name">${name} × ${qty}</div>
+          <div class="cart-item-price">${fmt(sub)}</div>
+        </div>
+        <button class="qty-btn" style="background:#ef4444" onclick="removeItem(${p.id})">✕</button>
+      </div>`;
+  });
+  document.getElementById("ct-value").textContent = fmt(total);
+  showStep("step-cart");
+}
+
+function removeItem(id) {
+  delete cart[id];
+  updateCartBar();
+  goToCart();
+}
+
+// ── Service ───────────────────────────────────────────────────────────────────
+function startServiceOrder() {
+  orderType = "service";
+  showStep("step-phone");
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function showStep(id) {
+  document.querySelectorAll(".step").forEach(s => s.classList.remove("active"));
+  const el = document.getElementById(id);
+  if (el) { el.classList.add("active"); el.scrollTop = 0; }
+  if (id === "step-location") initMap();
+}
+
+function goBack(currentId, targetId) {
+  showStep(targetId);
+}
+
+function goStep(from, to) {
+  showStep(to);
+}
+
+// ── Phone ─────────────────────────────────────────────────────────────────────
+
+// FIX #6: Back from phone step goes to different step depending on orderType
+function phoneBack() {
+  showStep(orderType === "service" ? "step-products" : "step-cart");
+}
+
+function phoneNext() {
+  // FIX #7: Strip all whitespace before length check, require at least 9 digits
+  const phone = document.getElementById("phone-input").value.replace(/\s/g, "");
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 9) {
+    alert(T.phone_ph);
+    return;
+  }
+  showStep("step-location");
+}
+
+// ── Map ───────────────────────────────────────────────────────────────────────
+function initMap() {
+  if (map) return;
+  const defaultLat = 41.2995, defaultLng = 69.2401;
+  map = L.map("map").setView([defaultLat, defaultLng], 13);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap"
+  }).addTo(map);
+  marker = L.marker([defaultLat, defaultLng], { draggable: true }).addTo(map);
+  markerLat = defaultLat; markerLng = defaultLng;
+  marker.on("dragend", e => {
+    const pos = e.target.getLatLng();
+    markerLat = pos.lat; markerLng = pos.lng;
+    updateCoords();
+  });
+  map.on("click", e => {
+    marker.setLatLng(e.latlng);
+    markerLat = e.latlng.lat; markerLng = e.latlng.lng;
+    updateCoords();
+  });
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      map.setView([lat, lng], 15);
+      marker.setLatLng([lat, lng]);
+      markerLat = lat; markerLng = lng;
+      updateCoords();
+    });
+  }
+  setTimeout(() => map.invalidateSize(), 300);
+}
+
+function updateCoords() {
+  document.getElementById("loc-coords").textContent =
+    `${markerLat.toFixed(5)}, ${markerLng.toFixed(5)}`;
+}
+
+function locationNext() {
+  if (!markerLat) return alert(T.map_hint);
+  showStep("step-duration");
+}
+
+// ── Duration ──────────────────────────────────────────────────────────────────
+function selectDur(val, chipId) {
+  // FIX #12: Store i18n-aware duration label (e.g. "3 дня" for ru, "3 kun" for uz)
+  selectedDuration = T[`d${val}_val`];
+  document.querySelectorAll(".dur-chip").forEach(c => c.classList.remove("selected"));
+  document.getElementById(chipId).classList.add("selected");
+}
+
+function durationNext() {
+  if (!selectedDuration) return alert(T.duration);
+  if (orderType === "service") {
+    submitServiceOrder();
+  } else {
+    showStep("step-payment");
+  }
+}
+
+// ── Payment ───────────────────────────────────────────────────────────────────
+function copyCard() {
+  navigator.clipboard.writeText(PAYMENT_CARD.replace(/\s/g, "")).then(() => {
+    const btn = document.getElementById("p-copy");
+    btn.textContent = T.copied;
+    setTimeout(() => btn.textContent = T.copy, 2000);
+  });
+}
+
+async function handleScreenshot(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    const res = await fetch("/api/upload-screenshot", { method: "POST", body: fd });
+    const data = await res.json();
+    screenshotUrl = data.url;
+    const img = document.getElementById("preview-img");
+    img.src = screenshotUrl; img.style.display = "block";
+    document.getElementById("upload-area").classList.add("has-file");
+  } catch {
+    const reader = new FileReader();
+    reader.onload = e => {
+      screenshotUrl = e.target.result;
+      document.getElementById("preview-img").src = screenshotUrl;
+      document.getElementById("preview-img").style.display = "block";
+      document.getElementById("upload-area").classList.add("has-file");
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+// ── Submit product order ──────────────────────────────────────────────────────
+async function submitOrder() {
+  if (!screenshotUrl) return alert(T.screenshot);
+  const btn = document.getElementById("btn-send");
+  btn.disabled = true;
+
+  const items = PRODUCTS
+    .filter(p => cart[p.id])
+    .map(p => ({
+      id: p.id,
+      name: LANG === "ru" ? p.name_ru : p.name_uz,
+      price: p.price,
+      qty: cart[p.id]
+    }));
+
+  const payload = {
+    action: "order",
+    order_type: "product",
+    items,
+    total: cartTotal(),
+    phone: document.getElementById("phone-input").value.trim(),
+    latitude: markerLat,
+    longitude: markerLng,
+    address: `${markerLat?.toFixed(5)}, ${markerLng?.toFixed(5)}`,
+    duration: selectedDuration,
+    screenshot: screenshotUrl,
+    comment: document.getElementById("comment-input").value.trim(),
+  };
+
+  sendToBot(payload);
+}
+
+// ── Submit service order ──────────────────────────────────────────────────────
+function submitServiceOrder() {
+  const payload = {
+    action: "order",
+    order_type: "service",
+    items: [],
+    total: 0,
+    phone: document.getElementById("phone-input").value.trim(),
+    latitude: markerLat,
+    longitude: markerLng,
+    address: `${markerLat?.toFixed(5)}, ${markerLng?.toFixed(5)}`,
+    duration: selectedDuration,
+  };
+  sendToBot(payload);
+}
+
+function sendToBot(payload) {
+  try {
+    if (tg) {
+      tg.sendData(JSON.stringify(payload));
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  showSuccess();
+}
+
+function showSuccess() {
+  document.querySelectorAll(".step").forEach(s => { s.classList.remove("active"); s.style.display = "none"; });
+  document.getElementById("step-success").style.display = "";
+  setTimeout(() => { if (tg) tg.close(); }, 3000);
+}
+</script>
+</body>
+</html>

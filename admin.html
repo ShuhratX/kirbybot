@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Admin Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --sky: #0ea5e9; --sky-dark: #0284c7; --sky-light: #e0f2fe;
+    --bg: #ffffff; --surface: #f0f9ff; --text: #0f172a;
+    --muted: #64748b; --border: #bae6fd; --radius: 16px;
+    --shadow: 0 4px 20px rgba(14,165,233,.15);
+    --green: #22c55e; --red: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Nunito', sans-serif; background: var(--bg); color: var(--text); }
+
+  .topbar { background: linear-gradient(135deg, var(--sky) 0%, var(--sky-dark) 100%);
+            padding: 18px 16px; color: #fff; }
+  .topbar h1 { font-size: 1.3rem; font-weight: 800; }
+  .topbar p { font-size: .8rem; opacity: .8; margin-top: 2px; }
+
+  .section { padding: 16px; }
+  .section-title { font-weight: 800; font-size: 1rem; color: var(--sky-dark); margin-bottom: 12px; }
+
+  /* Report card */
+  .report-card { background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);
+                 border-radius: var(--radius); padding: 20px; color: #fff;
+                 display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .report-stat { text-align: center; }
+  .report-stat .num { font-size: 1.8rem; font-weight: 800; }
+  .report-stat .lbl { font-size: .75rem; opacity: .8; margin-top: 2px; }
+  .report-divider { width: 1px; height: 50px; background: rgba(255,255,255,.3); }
+
+  .btn-report { width: 100%; padding: 14px; background: var(--sky-light); border: 2px solid var(--border);
+                border-radius: 12px; font-family: inherit; font-size: .95rem; font-weight: 800;
+                color: var(--sky-dark); cursor: pointer; transition: all .2s; }
+  .btn-report:hover { background: var(--sky); color: #fff; }
+
+  /* Product list */
+  .product-row { display: flex; align-items: center; gap: 12px; padding: 12px;
+                 background: var(--surface); border-radius: 12px; margin-bottom: 8px;
+                 border: 1.5px solid var(--border); }
+  .product-row img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex-shrink: 0; }
+  .prod-info { flex: 1; }
+  .prod-name { font-weight: 700; font-size: .9rem; }
+  .prod-price { color: var(--sky-dark); font-size: .85rem; font-weight: 700; }
+
+  /* Toggle */
+  .toggle-wrap { position: relative; width: 50px; height: 27px; flex-shrink: 0; }
+  .toggle-wrap input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; inset: 0; background: #cbd5e1; border-radius: 27px;
+                   cursor: pointer; transition: background .2s; }
+  .toggle-slider:before { content: ""; position: absolute; height: 21px; width: 21px; left: 3px; top: 3px;
+                           background: #fff; border-radius: 50%; transition: transform .2s;
+                           box-shadow: 0 2px 4px rgba(0,0,0,.2); }
+  input:checked + .toggle-slider { background: var(--green); }
+  input:checked + .toggle-slider:before { transform: translateX(23px); }
+
+  .status-badge { font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+  .status-badge.on { background: #dcfce7; color: #16a34a; }
+  .status-badge.off { background: #fee2e2; color: #dc2626; }
+
+  .loading { text-align: center; color: var(--muted); padding: 32px; font-size: .9rem; }
+</style>
+</head>
+<body>
+<script>
+  const tg = window.Telegram?.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+  const USER_ID = {{ user_id }};
+</script>
+
+<div class="topbar">
+  <h1>⚙️ Admin Panel</h1>
+  <p>Mahsulot boshqaruvi va hisobot</p>
+</div>
+
+<!-- Report -->
+<div class="section">
+  <div class="section-title">📊 Oylik hisobot</div>
+  <div class="report-card" id="report-card">
+    <div class="report-stat">
+      <div class="num" id="r-count">—</div>
+      <div class="lbl">Buyurtmalar</div>
+    </div>
+    <div class="report-divider"></div>
+    <div class="report-stat">
+      <div class="num" id="r-revenue">—</div>
+      <div class="lbl">Daromad (so'm)</div>
+    </div>
+  </div>
+  <button class="btn-report" onclick="loadReport()">🔄 Hisobotni yangilash</button>
+</div>
+
+<!-- Products -->
+<div class="section">
+  <div class="section-title">📦 Mahsulotlar</div>
+  <div id="products-list"><div class="loading">Yuklanmoqda...</div></div>
+</div>
+
+<script>
+  const PRODUCTS = {{ products | tojson }};
+
+  function fmt(n) { return Number(n).toLocaleString("uz-UZ"); }
+
+  // ── Render products ──────────────────────────────────────────────────────
+  function renderProducts(list) {
+    const el = document.getElementById("products-list");
+    el.innerHTML = "";
+    list.forEach(p => {
+      const row = document.createElement("div");
+      row.className = "product-row";
+      row.id = "row-" + p.id;
+      const active = p.is_active === 1;
+      row.innerHTML = `
+        <img src="${p.image_url}" alt="${p.name_uz}"
+             onerror="this.src='https://via.placeholder.com/56x56/0ea5e9/fff?text=?'">
+        <div class="prod-info">
+          <div class="prod-name">${p.name_uz} / ${p.name_ru}</div>
+          <div class="prod-price">${fmt(p.price)} so'm</div>
+          <span class="status-badge ${active ? 'on' : 'off'}" id="badge-${p.id}">
+            ${active ? 'Faol ✅' : 'Nofaol ❌'}
+          </span>
+        </div>
+        <label class="toggle-wrap">
+          <input type="checkbox" ${active ? 'checked' : ''} onchange="toggleProduct(${p.id}, this)">
+          <span class="toggle-slider"></span>
+        </label>`;
+      el.appendChild(row);
+    });
+  }
+
+  // ── Toggle product ────────────────────────────────────────────────────────
+  async function toggleProduct(id, checkbox) {
+    // Immediately revert optimistic state — wait for server confirmation
+    checkbox.disabled = true;
+    try {
+      const res = await fetch("/api/toggle/" + id, { method: "POST" });
+      const data = await res.json();
+      const badge = document.getElementById("badge-" + id);
+      // FIX #10: Always sync checkbox to actual server state (both true and false)
+      checkbox.checked = data.active;
+      if (data.active) {
+        badge.textContent = "Faol ✅"; badge.className = "status-badge on";
+      } else {
+        badge.textContent = "Nofaol ❌"; badge.className = "status-badge off";
+      }
+      if (tg) {
+        tg.sendData(JSON.stringify({ action: "toggle_product", product_id: id }));
+      }
+    } catch (e) {
+      alert("Xatolik yuz berdi");
+      // Revert checkbox to previous state on network error
+      checkbox.checked = !checkbox.checked;
+    } finally {
+      checkbox.disabled = false;
+    }
+  }
+
+  // ── Report ────────────────────────────────────────────────────────────────
+  async function loadReport() {
+    try {
+      const res = await fetch("/api/report");
+      const data = await res.json();
+      document.getElementById("r-count").textContent = data.cnt;
+      document.getElementById("r-revenue").textContent = fmt(data.revenue);
+      // Also notify bot for in-chat display
+      if (tg) {
+        tg.sendData(JSON.stringify({ action: "monthly_report" }));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  renderProducts(PRODUCTS);
+  loadReport();
+</script>
+</body>
+</html>
