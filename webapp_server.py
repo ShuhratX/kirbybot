@@ -31,7 +31,7 @@ templates = Jinja2Templates(directory=os.path.join(BASE, "webapp/templates"))
 @app.get("/webapp", response_class=HTMLResponse)
 async def webapp(request: Request, lang: str = "uz", user_id: int = 0):
     products = await get_products(active_only=True)
-    return templates.TemplateResponse("webapp.html", {
+    return templates.TemplateResponse("index.html", {
         "request": request,
         "lang": lang,
         "user_id": user_id,
