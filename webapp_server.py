@@ -1,21 +1,19 @@
 import os
 from contextlib import asynccontextmanager
 
-import aiosqlite
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
-from config import DB_PATH, PAYMENT_CARD, PAYMENT_OWNER
+from config import PAYMENT_CARD, PAYMENT_OWNER
 from database import get_products, init_db, monthly_report, toggle_product
 
 
-# FIX #11: Use lifespan instead of deprecated @app.on_event("startup")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    await init_db()   # creates pool + schema
     yield
 
 
