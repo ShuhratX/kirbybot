@@ -87,7 +87,7 @@ async def show_main_menu(msg: Message, lang: str) -> None:
     user_id = msg.from_user.id
     is_admin = user_id in ADMIN_IDS
 
-    webapp_url = f"{WEBAPP_URL}/webapp?lang={lang}&user_id={user_id}"
+    webapp_url = f"{WEBAPP_URL}/webapp?user_id={user_id}&lang={lang}"
     admin_url  = f"{WEBAPP_URL}/admin?user_id={user_id}"
 
     rows = [

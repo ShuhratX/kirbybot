@@ -1,5 +1,15 @@
 {
-  "rewrites": [
-    { "source": "/(.*)", "destination": "webapp_server.py" }
+  "devCommand": "uvicorn webapp_server:app --host 0.0.0.0 --port 8000",
+  "builds": [
+    {
+      "src": "webapp_server.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "webapp_server.py"
+    }
   ]
 }
