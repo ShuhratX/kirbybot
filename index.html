@@ -612,27 +612,32 @@ function submitOrder() {
     latitude:  markerLat,
     longitude: markerLng,
     address:   `${markerLat.toFixed(5)}, ${markerLng.toFixed(5)}`,
-    screenshot: screenshotB64,
+    has_screenshot: screenshotB64 ? true : false,
     comment:   document.getElementById("inp-comment").value.trim(),
   };
 
-  // Debug
-  if (!tg) { alert("XATO: Telegram WebApp yuklanmagan!"); return; }
-  if (!tg.sendData) { alert("XATO: sendData mavjud emas!"); return; }
-
-  const payloadStr = JSON.stringify(payload);
-  alert("Yuborilmoqda... payload size: " + payloadStr.length + " bytes");
-
   try {
-    tg.sendData(payloadStr);
+    tg.sendData(JSON.stringify(payload));
   } catch (e) {
-    alert("sendData xatosi: " + e.message);
-    console.error("sendData:", e);
+    alert("Xato: " + e.message);
+    document.getElementById("btn-send").disabled = false;
     return;
+  }
+
+  // Screenshot botga alohida rasm sifatida yuklanadi
+  if (screenshotB64 && tg) {
+    _sendScreenshot(screenshotB64);
   }
 
   showStep("step-success");
   setTimeout(() => { if (tg) tg.close(); }, 3000);
+}
+
+async function _sendScreenshot(b64) {
+  // base64 -> blob -> tg.sendData works only for small data
+  // Instead prompt user to send photo in chat after webapp closes
+  // Screenshot is stored in sessionStorage for reference
+  try { sessionStorage.setItem("pending_screenshot", b64); } catch(e) {}
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

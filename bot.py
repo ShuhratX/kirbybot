@@ -262,6 +262,18 @@ async def cb_admin_back(cb: CallbackQuery) -> None:
     await cb.answer()
 
 
+# ── Screenshot handler ───────────────────────────────────────────────────────
+
+@router.message(F.photo)
+async def handle_photo(msg: Message, bot: Bot) -> None:
+    """User sends payment screenshot after webapp closes."""
+    try:
+        await bot.forward_message(GROUP_ID, msg.chat.id, msg.message_id)
+        log.info("Screenshot forwarded to group from user_id=%s", msg.from_user.id)
+    except Exception as e:
+        log.error("Forward photo failed: %s", e)
+
+
 # ── WebApp order ──────────────────────────────────────────────────────────────
 
 @router.message(F.web_app_data)
@@ -300,7 +312,7 @@ async def _handle_order(msg: Message, bot: Bot, data: dict) -> None:
             "address":    data.get("address"),
             "duration":   data.get("duration"),
             "order_type": data.get("order_type", "product"),
-            "screenshot": data.get("screenshot"),
+            "screenshot": None,  # screenshot alohida rasm xabari orqali keladi
             "comment":    data.get("comment"),
         })
         log.info("Order saved: order_id=%s", order_id)
@@ -309,6 +321,8 @@ async def _handle_order(msg: Message, bot: Bot, data: dict) -> None:
         return
 
     await msg.answer(t(lang, "order_received"))
+    if data.get("has_screenshot"):
+        await msg.answer(t(lang, "send_screenshot"))
 
     items_lines = "".join(
         f"  • {item['name']} ×{item['qty']} — {item['price'] * item['qty']:,.0f} so'm\n"

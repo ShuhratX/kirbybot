@@ -7,6 +7,7 @@ TEXTS = {
         "order_btn":      "🛒 Buyurtma berish",
         "change_lang":    "🌐 Tilni o'zgartirish",
         "order_received": "✅ Buyurtmangiz qabul qilindi!",
+        "send_screenshot": "📸 Iltimos, to\'lov skrinshotiini shu yerga yuboring:",
     },
     "ru": {
         "choose_lang":    "🌐 Tilni tanlang / Выберите язык:",
@@ -16,6 +17,7 @@ TEXTS = {
         "order_btn":      "🛒 Сделать заказ",
         "change_lang":    "🌐 Сменить язык",
         "order_received": "✅ Ваш заказ принят!",
+        "send_screenshot": "📸 Пожалуйста, отправьте скриншот оплаты сюда:",
     },
 }
 
