@@ -160,7 +160,7 @@ async def show_main_menu(msg: Message, lang: str) -> None:
     is_admin = user_id in ADMIN_IDS
 
     webapp_url = (
-        f"{WEBAPP_URL}/webapp"
+        f"{WEBAPP_URL}"
         f"?lang={lang}"
         f"&card={quote(PAYMENT_CARD)}"
         f"&owner={quote(PAYMENT_OWNER)}"
@@ -266,32 +266,47 @@ async def cb_admin_back(cb: CallbackQuery) -> None:
 
 @router.message(F.web_app_data)
 async def webapp_data(msg: Message, bot: Bot) -> None:
+    print("=== WEB_APP_DATA RECEIVED ===", flush=True)
+    log.info("web_app_data received: %s", msg.web_app_data.data[:100] if msg.web_app_data else None)
     try:
         data = json.loads(msg.web_app_data.data)
-    except (json.JSONDecodeError, AttributeError):
-        log.error("Invalid webapp data: %s", msg.web_app_data.data)
+    except (json.JSONDecodeError, AttributeError) as e:
+        log.error("Invalid webapp data: %s | error: %s", msg.web_app_data.data, e)
         return
+    log.info("Parsed action: %s", data.get("action"))
     if data.get("action") == "order":
         await _handle_order(msg, bot, data)
+    else:
+        log.warning("Unknown action: %s", data.get("action"))
 
 
 async def _handle_order(msg: Message, bot: Bot, data: dict) -> None:
+    log.info("Order received from user_id=%s data=%s", msg.from_user.id,
+             {k: v[:30] if isinstance(v, str) and len(v) > 30 else v
+              for k, v in data.items() if k != "screenshot"})
+
     user = await get_user(msg.from_user.id)
     lang = user["lang"] if user else "uz"
+    log.info("User lookup: %s", user)
 
-    order_id = await create_order({
-        "user_id":    msg.from_user.id,
-        "items":      json.dumps(data.get("items", []), ensure_ascii=False),
-        "total":      data.get("total", 0),
-        "phone":      data.get("phone"),
-        "latitude":   data.get("latitude"),
-        "longitude":  data.get("longitude"),
-        "address":    data.get("address"),
-        "duration":   data.get("duration"),
-        "order_type": data.get("order_type", "product"),
-        "screenshot": data.get("screenshot"),
-        "comment":    data.get("comment"),
-    })
+    try:
+        order_id = await create_order({
+            "user_id":    msg.from_user.id,
+            "items":      json.dumps(data.get("items", []), ensure_ascii=False),
+            "total":      data.get("total", 0),
+            "phone":      data.get("phone"),
+            "latitude":   data.get("latitude"),
+            "longitude":  data.get("longitude"),
+            "address":    data.get("address"),
+            "duration":   data.get("duration"),
+            "order_type": data.get("order_type", "product"),
+            "screenshot": data.get("screenshot"),
+            "comment":    data.get("comment"),
+        })
+        log.info("Order saved: order_id=%s", order_id)
+    except Exception as e:
+        log.error("create_order failed: %s", e)
+        return
 
     await msg.answer(t(lang, "order_received"))
 
@@ -310,11 +325,17 @@ async def _handle_order(msg: Message, bot: Bot, data: dict) -> None:
         f"💬 Izoh: {data.get('comment') or '—'}"
     )
 
+    log.info("Sending to GROUP_ID=%s", GROUP_ID)
     try:
         await bot.send_message(GROUP_ID, group_text, parse_mode="HTML")
+        log.info("Group message sent OK")
+    except Exception as e:
+        log.error("send_message failed: %s", e)
+        return
 
-        screenshot = data.get("screenshot")
-        if screenshot and screenshot.startswith("data:image"):
+    screenshot = data.get("screenshot")
+    if screenshot and screenshot.startswith("data:image"):
+        try:
             _, b64data = screenshot.split(",", 1)
             from aiogram.types import BufferedInputFile
             photo = BufferedInputFile(base64.b64decode(b64data), filename="screenshot.jpg")
@@ -322,8 +343,9 @@ async def _handle_order(msg: Message, bot: Bot, data: dict) -> None:
                 GROUP_ID, photo,
                 caption=f"Buyurtma #{order_id} — to'lov skrinshoti",
             )
-    except Exception as e:
-        log.error("Group send failed: %s", e)
+            log.info("Screenshot sent OK")
+        except Exception as e:
+            log.error("send_photo failed: %s", e)
 
 
 # ── Boot ──────────────────────────────────────────────────────────────────────

@@ -607,10 +607,19 @@ function submitOrder() {
     comment:   document.getElementById("inp-comment").value.trim(),
   };
 
+  // Debug
+  if (!tg) { alert("XATO: Telegram WebApp yuklanmagan!"); return; }
+  if (!tg.sendData) { alert("XATO: sendData mavjud emas!"); return; }
+
+  const payloadStr = JSON.stringify(payload);
+  alert("Yuborilmoqda... payload size: " + payloadStr.length + " bytes");
+
   try {
-    if (tg) tg.sendData(JSON.stringify(payload));
+    tg.sendData(payloadStr);
   } catch (e) {
+    alert("sendData xatosi: " + e.message);
     console.error("sendData:", e);
+    return;
   }
 
   showStep("step-success");
