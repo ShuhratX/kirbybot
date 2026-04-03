@@ -180,6 +180,20 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .bottom-pad { height: 80px; }
+
+/* ── Duration ── */
+.dur-grid { display: flex; flex-direction: column; gap: 10px; }
+.dur-chip {
+  padding: 16px 18px;
+  border: 2px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between;
+  transition: all .15s;
+}
+.dur-chip.selected { border-color: var(--accent); background: var(--accent-light); }
+.dur-chip-label { font-size: 1rem; font-weight: 700; }
+.dur-chip-sub { font-size: .8rem; color: var(--muted); }
+.dur-chip.selected .dur-chip-sub { color: var(--accent-dark); }
 </style>
 </head>
 <body>
@@ -256,10 +270,22 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   </div>
 </div>
 
-<!-- Step 5: Payment -->
-<div class="step" id="step-payment">
+<!-- Step 5: Duration -->
+<div class="step" id="step-duration">
   <div class="header">
     <button class="back-btn" onclick="goStep('step-location')">←</button>
+    <h2 id="h-duration"></h2>
+  </div>
+  <div class="body">
+    <div class="dur-grid" id="dur-grid"></div>
+    <button class="btn-primary" id="btn-dur-next" onclick="durationNext()" style="margin-top:16px"></button>
+  </div>
+</div>
+
+<!-- Step 6: Payment -->
+<div class="step" id="step-payment">
+  <div class="header">
+    <button class="back-btn" onclick="goStep('step-duration')">←</button>
     <h2 id="h-payment"></h2>
   </div>
   <div class="body">
@@ -302,6 +328,7 @@ let PRODUCTS = [];
 const cart   = {}; // { id: qty }
 
 let markerLat = null, markerLng = null;
+let selectedDuration = null;
 let screenshotB64 = null;
 let map = null, leafMarker = null;
 
@@ -314,6 +341,14 @@ const TX = {
     location: "Lokatsiya", map_hint: "Xaritada joylashuvingizni belgilang",
     next_location: "→ Lokatsiyani belgilash",
     next_payment:  "→ To'lovga o'tish",
+    duration: "Muddatni tanlang",
+    dur_next: "→ To'lovga o'tish",
+    err_duration: "Muddatni tanlang",
+    days: [
+      { val: "1 kun",  sub: "Bir kunlik xizmat" },
+      { val: "3 kun",  sub: "Uch kunlik xizmat" },
+      { val: "5 kun",  sub: "Besh kunlik xizmat" },
+    ],
     payment: "To'lov", copy: "Nusxa olish", copied: "Nusxalandi!",
     screenshot: "To'lov skrinshoti", screenshot_hint: "Rasmni tanlash uchun bosing",
     comment: "Izoh (ixtiyoriy)", comment_ph: "...",
@@ -333,6 +368,14 @@ const TX = {
     location: "Местоположение", map_hint: "Укажите местоположение на карте",
     next_location: "→ Указать местоположение",
     next_payment:  "→ Перейти к оплате",
+    duration: "Выберите срок",
+    dur_next: "→ К оплате",
+    err_duration: "Выберите срок",
+    days: [
+      { val: "1 день",  sub: "Однодневный сервис" },
+      { val: "3 дня",   sub: "Трёхдневный сервис" },
+      { val: "5 дней",  sub: "Пятидневный сервис" },
+    ],
     payment: "Оплата", copy: "Копировать", copied: "Скопировано!",
     screenshot: "Скриншот оплаты", screenshot_hint: "Нажмите для выбора фото",
     comment: "Комментарий (необязательно)", comment_ph: "...",
@@ -382,6 +425,8 @@ function applyLang() {
   setText("h-location",    T.location);
   setText("lbl-map-hint",  T.map_hint);
   setText("btn-loc-next",  T.next_payment);
+  setText("h-duration",    T.duration);
+  setText("btn-dur-next",  T.dur_next);
   setText("h-payment",     T.payment);
   setText("p-owner",       PAYMENT_OWNER);
   setText("p-num",         PAYMENT_CARD);
@@ -486,6 +531,7 @@ function goStep(id) {
   }
   if (id === "step-cart")     renderCartStep();
   if (id === "step-location") initMap();
+  if (id === "step-duration") renderDuration();
   showStep(id);
 }
 
@@ -538,6 +584,29 @@ function updateCoords() {
 
 function locationNext() {
   if (markerLat == null) { alert(TX[LANG].err_location); return; }
+  goStep("step-duration");
+}
+
+function renderDuration() {
+  const T    = TX[LANG];
+  const grid = document.getElementById("dur-grid");
+  grid.innerHTML = "";
+  T.days.forEach(d => {
+    const div = document.createElement("div");
+    div.className = "dur-chip" + (selectedDuration === d.val ? " selected" : "");
+    div.innerHTML = `
+      <div>
+        <div class="dur-chip-label">${d.val}</div>
+        <div class="dur-chip-sub">${d.sub}</div>
+      </div>
+      <span style="font-size:1.4rem">${selectedDuration === d.val ? "✅" : ""}</span>`;
+    div.onclick = () => { selectedDuration = d.val; renderDuration(); };
+    grid.appendChild(div);
+  });
+}
+
+function durationNext() {
+  if (!selectedDuration) { alert(TX[LANG].err_duration); return; }
   goStep("step-payment");
 }
 
@@ -605,6 +674,7 @@ function submitOrder() {
     latitude:  markerLat,
     longitude: markerLng,
     address:   `${markerLat.toFixed(5)}, ${markerLng.toFixed(5)}`,
+    duration:  selectedDuration,
 
     comment:   document.getElementById("inp-comment").value.trim(),
   };

@@ -41,6 +41,10 @@ class Reg(StatesGroup):
     name = State()
 
 
+class Order(StatesGroup):
+    waiting_screenshot = State()
+
+
 # ── GitHub Pages push ─────────────────────────────────────────────────────────
 
 async def push_products_json() -> bool:
@@ -264,48 +268,14 @@ async def cb_admin_back(cb: CallbackQuery) -> None:
 
 # ── Screenshot handler ───────────────────────────────────────────────────────
 
-@router.message(F.photo)
-async def handle_photo(msg: Message, bot: Bot) -> None:
-    """User sends payment screenshot — forward to group and all admins."""
-    user = await get_user(msg.from_user.id)
-    name = user["full_name"] if user else str(msg.from_user.id)
-    caption = f"📸 To'lov skrinshoti
-👤 {name}"
-
-    targets = list({GROUP_ID, *ADMIN_IDS})  # guruh + adminlar, takrorsiz
-    for target in targets:
-        try:
-            await bot.send_photo(target, msg.photo[-1].file_id, caption=caption)
-        except Exception as e:
-            log.error("Forward photo to %s failed: %s", target, e)
-
-
-# ── WebApp order ──────────────────────────────────────────────────────────────
-
-@router.message(F.web_app_data)
-async def webapp_data(msg: Message, bot: Bot) -> None:
-    print("=== WEB_APP_DATA RECEIVED ===", flush=True)
-    log.info("web_app_data received: %s", msg.web_app_data.data[:100] if msg.web_app_data else None)
-    try:
-        data = json.loads(msg.web_app_data.data)
-    except (json.JSONDecodeError, AttributeError) as e:
-        log.error("Invalid webapp data: %s | error: %s", msg.web_app_data.data, e)
-        return
-    log.info("Parsed action: %s", data.get("action"))
-    if data.get("action") == "order":
-        await _handle_order(msg, bot, data)
-    else:
-        log.warning("Unknown action: %s", data.get("action"))
-
-
-async def _handle_order(msg: Message, bot: Bot, data: dict) -> None:
-    log.info("Order received from user_id=%s data=%s", msg.from_user.id,
-             {k: v[:30] if isinstance(v, str) and len(v) > 30 else v
-              for k, v in data.items() if k != "screenshot"})
+@router.message(Order.waiting_screenshot, F.photo)
+async def handle_screenshot(msg: Message, bot: Bot, state: FSMContext) -> None:
+    state_data = await state.get_data()
+    data       = state_data.get("order_data", {})
+    lang       = state_data.get("order_lang", "uz")
+    await state.clear()
 
     user = await get_user(msg.from_user.id)
-    lang = user["lang"] if user else "uz"
-    log.info("User lookup: %s", user)
 
     try:
         order_id = await create_order({
@@ -318,7 +288,7 @@ async def _handle_order(msg: Message, bot: Bot, data: dict) -> None:
             "address":    data.get("address"),
             "duration":   data.get("duration"),
             "order_type": data.get("order_type", "product"),
-            "screenshot": None,  # screenshot alohida rasm xabari orqali keladi
+            "screenshot": None,
             "comment":    data.get("comment"),
         })
         log.info("Order saved: order_id=%s", order_id)
@@ -326,36 +296,56 @@ async def _handle_order(msg: Message, bot: Bot, data: dict) -> None:
         log.error("create_order failed: %s", e)
         return
 
-    await msg.answer(t(lang, "order_received"))
-
     items_lines = "".join(
         f"  • {item['name']} ×{item['qty']} — {item['price'] * item['qty']:,.0f} so'm\n"
         for item in data.get("items", [])
     ) or "  • (bo'sh)\n"
 
-    group_text = (
+    caption = (
         f"🆕 <b>Yangi buyurtma #{order_id}</b>\n\n"
         f"👤 {user['full_name'] if user else 'N/A'}\n"
         f"📞 {data.get('phone', '—')}\n"
         f"📍 {data.get('address', '—')}\n\n"
-        f"{items_lines}\n"
+        f"{items_lines}"
         f"💰 Jami: <b>{data.get('total', 0):,.0f} so'm</b>\n"
         f"💬 Izoh: {data.get('comment') or '—'}"
     )
 
-    log.info("Sending to GROUP_ID=%s", GROUP_ID)
-    try:
-        await bot.send_message(GROUP_ID, group_text, parse_mode="HTML")
-        log.info("Group message sent OK")
-    except Exception as e:
-        log.error("send_message to group failed: %s", e)
-
-    # Adminga ham yuborish
-    for admin_id in ADMIN_IDS:
+    targets = list({GROUP_ID, *ADMIN_IDS})
+    for target in targets:
         try:
-            await bot.send_message(admin_id, group_text, parse_mode="HTML")
+            await bot.send_photo(
+                target, msg.photo[-1].file_id,
+                caption=caption, parse_mode="HTML",
+            )
         except Exception as e:
-            log.error("send_message to admin %s failed: %s", admin_id, e)
+            log.error("send_photo to %s failed: %s", target, e)
+
+    await msg.answer(t(lang, "order_received"))
+
+
+# ── WebApp order ──────────────────────────────────────────────────────────────
+
+@router.message(F.web_app_data)
+async def webapp_data(msg: Message, bot: Bot, state: FSMContext) -> None:
+    try:
+        data = json.loads(msg.web_app_data.data)
+    except (json.JSONDecodeError, AttributeError):
+        log.error("Invalid webapp data: %s", msg.web_app_data.data)
+        return
+    if data.get("action") == "order":
+        await _handle_order(msg, data, state)
+
+
+async def _handle_order(msg: Message, data: dict, state: FSMContext) -> None:
+    log.info("Order received from user_id=%s", msg.from_user.id)
+    user = await get_user(msg.from_user.id)
+    lang = user["lang"] if user else "uz"
+
+    # Buyurtmani vaqtincha state ga saqlaymiz — skrinshot kelgandan keyin DB ga yozamiz
+    await state.update_data(order_data=data, order_lang=lang)
+    await state.set_state(Order.waiting_screenshot)
+    await msg.answer(t(lang, "send_screenshot"))
 
 
 # ── Boot ──────────────────────────────────────────────────────────────────────
