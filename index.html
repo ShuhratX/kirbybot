@@ -266,15 +266,6 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
       <button class="copy-btn" id="p-copy" onclick="copyCard()"></button>
     </div>
 
-    <div class="field-label" id="lbl-screenshot"></div>
-    <div class="upload-area" id="upload-area"
-         onclick="document.getElementById('screenshot-input').click()">
-      <div class="upload-icon">📷</div>
-      <div class="upload-text" id="upload-text"></div>
-      <img id="preview-img" src="" alt="preview">
-    </div>
-    <input type="file" id="screenshot-input" accept="image/*" onchange="handleScreenshot(this)">
-
     <div class="field">
       <div class="field-label" id="lbl-comment"></div>
       <textarea class="field-input" id="inp-comment" rows="2" style="resize:none"></textarea>
@@ -591,7 +582,6 @@ function handleScreenshot(input) {
 
 // ── Submit ────────────────────────────────────────────────────────────────────
 function submitOrder() {
-  if (!screenshotB64) { alert(TX[LANG].err_screenshot); return; }
   document.getElementById("btn-send").disabled = true;
 
   const items = PRODUCTS
