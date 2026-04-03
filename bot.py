@@ -334,7 +334,53 @@ async def webapp_data(msg: Message, bot: Bot, state: FSMContext) -> None:
         log.error("Invalid webapp data: %s", msg.web_app_data.data)
         return
     if data.get("action") == "order":
-        await _handle_order(msg, data, state)
+        if data.get("order_type") == "texosmotr":
+            await _handle_texosmotr(msg, bot, data)
+        else:
+            await _handle_order(msg, data, state)
+
+
+async def _handle_texosmotr(msg: Message, bot: Bot, data: dict) -> None:
+    """Texosmotr: screenshot yo'q, darhol DB ga saqlash va yuborish."""
+    log.info("Texosmotr order from user_id=%s", msg.from_user.id)
+    user = await get_user(msg.from_user.id)
+    lang = user["lang"] if user else "uz"
+
+    try:
+        order_id = await create_order({
+            "user_id":    msg.from_user.id,
+            "items":      "[]",
+            "total":      0,
+            "phone":      data.get("phone"),
+            "latitude":   data.get("latitude"),
+            "longitude":  data.get("longitude"),
+            "address":    data.get("address"),
+            "duration":   data.get("duration"),
+            "order_type": "texosmotr",
+            "screenshot": None,
+            "comment":    data.get("comment"),
+        })
+        log.info("Texosmotr order saved: order_id=%s", order_id)
+    except Exception as e:
+        log.error("create_order texosmotr failed: %s", e)
+        return
+
+    caption = (
+        f"🚗 <b>Texosmotr buyurtmasi #{order_id}</b>\n\n"
+        f"👤 {user['full_name'] if user else 'N/A'}\n"
+        f"📞 {data.get('phone', '—')}\n"
+        f"📍 {data.get('address', '—')}\n"
+        f"📅 Muddat: {data.get('duration', '—')}"
+    )
+
+    targets = list({GROUP_ID, *ADMIN_IDS})
+    for target in targets:
+        try:
+            await bot.send_message(target, caption, parse_mode="HTML")
+        except Exception as e:
+            log.error("send_message texosmotr to %s failed: %s", target, e)
+
+    await msg.answer(t(lang, "order_received"))
 
 
 async def _handle_order(msg: Message, data: dict, state: FSMContext) -> None:

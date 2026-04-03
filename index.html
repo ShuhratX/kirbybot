@@ -183,6 +183,20 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 @keyframes spin { to { transform: rotate(360deg); } }
 .bottom-pad { height: 80px; }
 
+/* ── Tabs ── */
+.tab-bar { display: flex; background: #f1f5f9; border-radius: 12px; padding: 4px; gap: 4px; margin-bottom: 14px; }
+.tab { flex: 1; padding: 9px; border: none; border-radius: 9px; background: transparent;
+       font-family: inherit; font-size: .85rem; font-weight: 600; cursor: pointer; color: var(--muted); transition: all .2s; }
+.tab.active { background: var(--surface); color: var(--accent-dark); box-shadow: 0 1px 6px rgba(0,0,0,.08); }
+
+/* ── Texosmotr card ── */
+.tex-card { background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);
+            border-radius: var(--radius); padding: 28px 20px; color: #fff; text-align: center; cursor: pointer; }
+.tex-icon { font-size: 3rem; margin-bottom: 12px; }
+.tex-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+.tex-desc { font-size: .85rem; opacity: .85; margin-bottom: 16px; }
+.tex-btn { background: rgba(255,255,255,.2) !important; border: 2px solid rgba(255,255,255,.6) !important; }
+
 /* ── Duration ── */
 .dur-grid { display: flex; flex-direction: column; gap: 10px; }
 .dur-chip {
@@ -212,7 +226,21 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
     <button class="lang-btn" id="btn-lang" onclick="toggleLang()">RU</button>
   </div>
   <div class="body">
-    <div class="grid" id="products-grid"></div>
+    <div class="tab-bar">
+      <button class="tab active" id="tab-products" onclick="switchTab('products')"></button>
+      <button class="tab" id="tab-texosmotr" onclick="switchTab('texosmotr')"></button>
+    </div>
+    <div id="panel-products">
+      <div class="grid" id="products-grid"></div>
+    </div>
+    <div id="panel-texosmotr" style="display:none">
+      <div class="tex-card" onclick="startTexosmotr()">
+        <div class="tex-icon">🚗</div>
+        <div class="tex-title" id="tex-title"></div>
+        <div class="tex-desc" id="tex-desc"></div>
+        <button class="btn-primary tex-btn" id="tex-btn"></button>
+      </div>
+    </div>
     <div class="bottom-pad"></div>
   </div>
   <div class="cart-bar hidden" id="cart-bar" onclick="goStep('step-cart')">
@@ -363,6 +391,12 @@ const TX = {
     err_screenshot: "To'lov skrinshoti yuklang",
     err_cart:       "Savatga mahsulot qo'shing",
     lang_switch: "RU",
+    tab_products: "Mahsulotlar",
+    tab_texosmotr: "Texosmotr",
+    tex_title: "Texnik ko'rik",
+    tex_desc: "Avtomobilingizni texnik ko'rikdan o'tkazish uchun buyurtma bering",
+    tex_btn: "Buyurtma berish",
+    tex_order_type: "texosmotr",
   },
   ru: {
     title: "Товары", cart: "Корзина", total: "Итого:",
@@ -391,6 +425,12 @@ const TX = {
     err_screenshot: "Загрузите скриншот оплаты",
     err_cart:       "Добавьте товары в корзину",
     lang_switch: "UZ",
+    tab_products: "Товары",
+    tab_texosmotr: "Техосмотр",
+    tex_title: "Техосмотр",
+    tex_desc: "Оформите заявку на технический осмотр автомобиля",
+    tex_btn: "Оформить заявку",
+    tex_order_type: "texosmotr",
   }
 };
 
@@ -443,6 +483,11 @@ function applyLang() {
   setText("s-sub",         T.success_sub);
   setText("btn-lang",      T.lang_switch);
   setText("cb-label",      T.cart);
+  setText("tab-products",  T.tab_products);
+  setText("tab-texosmotr", T.tab_texosmotr);
+  setText("tex-title",     T.tex_title);
+  setText("tex-desc",      T.tex_desc);
+  setText("tex-btn",       T.tex_btn);
   document.getElementById("inp-phone").placeholder   = "90 123 45 67";
   document.getElementById("inp-comment").placeholder = T.comment_ph;
   updateCartBar();
@@ -472,6 +517,21 @@ function renderProducts() {
     grid.appendChild(div);
   });
   updateCartBar();
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById("panel-products").style.display  = tab === "products"  ? "" : "none";
+  document.getElementById("panel-texosmotr").style.display = tab === "texosmotr" ? "" : "none";
+  document.getElementById("tab-products").classList.toggle("active",  tab === "products");
+  document.getElementById("tab-texosmotr").classList.toggle("active", tab === "texosmotr");
+  if (tab === "products") window._orderMode = "product";
+}
+
+function startTexosmotr() {
+  // Texosmotr: telefon → xarita → muddat → darhol yuborish (screenshot yo'q)
+  window._orderMode = "texosmotr";
+  goStep("step-phone");
 }
 
 function chQty(id, delta) {
@@ -530,7 +590,7 @@ function removeItem(id) {
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 function goStep(id) {
-  if (id === "step-phone" && !cartCount()) {
+  if (id === "step-phone" && window._orderMode !== "texosmotr" && !cartCount()) {
     alert(TX[LANG].err_cart); return;
   }
   if (id === "step-cart")     renderCartStep();
@@ -611,7 +671,39 @@ function renderDuration() {
 
 function durationNext() {
   if (!selectedDuration) { alert(TX[LANG].err_duration); return; }
+  if (window._orderMode === "texosmotr") {
+    submitTexosmotr(); return;
+  }
   goStep("step-payment");
+}
+
+function submitTexosmotr() {
+  const btn = document.getElementById("btn-dur-next");
+  btn.disabled = true;
+
+  const payload = {
+    action:     "order",
+    order_type: "texosmotr",
+    items:      [],
+    total:      0,
+    phone:      "+998" + document.getElementById("inp-phone").value.replace(/\D/g, ""),
+    latitude:   markerLat,
+    longitude:  markerLng,
+    address:    `${markerLat.toFixed(5)}, ${markerLng.toFixed(5)}`,
+    duration:   selectedDuration,
+    comment:    "",
+  };
+
+  try {
+    if (tg) tg.sendData(JSON.stringify(payload));
+  } catch (e) {
+    alert("Xato: " + e.message);
+    btn.disabled = false;
+    return;
+  }
+
+  showStep("step-success");
+  setTimeout(() => { if (tg) tg.close(); }, 3000);
 }
 
 // ── Payment ───────────────────────────────────────────────────────────────────
