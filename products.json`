@@ -1,14 +1,5 @@
 [
   {
-    "id": 1,
-    "name_uz": "Mahsulot A",
-    "name_ru": "Продукт A",
-    "price": 50000.0,
-    "image_url": "https://via.placeholder.com/300x200/0ea5e9/fff?text=A",
-    "is_active": 1,
-    "created_at": "2026-03-31 13:51:38"
-  },
-  {
     "id": 2,
     "name_uz": "Mahsulot B",
     "name_ru": "Продукт B",
