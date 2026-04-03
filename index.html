@@ -2,6 +2,8 @@
 <html lang="uz">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Buyurtma</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -340,6 +342,7 @@ const TX = {
     phone: "Telefon raqam", phone_ph: "+998 90 123 45 67",
     location: "Lokatsiya", map_hint: "Xaritada joylashuvingizni belgilang",
     next_location: "→ Lokatsiyani belgilash",
+    next_duration: "→ Muddatni tanlash",
     next_payment:  "→ To'lovga o'tish",
     duration: "Muddatni tanlang",
     dur_next: "→ To'lovga o'tish",
@@ -367,6 +370,7 @@ const TX = {
     phone: "Номер телефона", phone_ph: "+998 90 123 45 67",
     location: "Местоположение", map_hint: "Укажите местоположение на карте",
     next_location: "→ Указать местоположение",
+    next_duration: "→ Выбрать срок",
     next_payment:  "→ Перейти к оплате",
     duration: "Выберите срок",
     dur_next: "→ К оплате",
@@ -424,7 +428,7 @@ function applyLang() {
   setText("btn-phone-next",T.next_location);
   setText("h-location",    T.location);
   setText("lbl-map-hint",  T.map_hint);
-  setText("btn-loc-next",  T.next_payment);
+  setText("btn-loc-next",  T.next_duration);
   setText("h-duration",    T.duration);
   setText("btn-dur-next",  T.dur_next);
   setText("h-payment",     T.payment);
