@@ -266,12 +266,18 @@ async def cb_admin_back(cb: CallbackQuery) -> None:
 
 @router.message(F.photo)
 async def handle_photo(msg: Message, bot: Bot) -> None:
-    """User sends payment screenshot after webapp closes."""
-    try:
-        await bot.forward_message(GROUP_ID, msg.chat.id, msg.message_id)
-        log.info("Screenshot forwarded to group from user_id=%s", msg.from_user.id)
-    except Exception as e:
-        log.error("Forward photo failed: %s", e)
+    """User sends payment screenshot — forward to group and all admins."""
+    user = await get_user(msg.from_user.id)
+    name = user["full_name"] if user else str(msg.from_user.id)
+    caption = f"📸 To'lov skrinshoti
+👤 {name}"
+
+    targets = list({GROUP_ID, *ADMIN_IDS})  # guruh + adminlar, takrorsiz
+    for target in targets:
+        try:
+            await bot.send_photo(target, msg.photo[-1].file_id, caption=caption)
+        except Exception as e:
+            log.error("Forward photo to %s failed: %s", target, e)
 
 
 # ── WebApp order ──────────────────────────────────────────────────────────────
@@ -321,8 +327,6 @@ async def _handle_order(msg: Message, bot: Bot, data: dict) -> None:
         return
 
     await msg.answer(t(lang, "order_received"))
-    if data.get("has_screenshot"):
-        await msg.answer(t(lang, "send_screenshot"))
 
     items_lines = "".join(
         f"  • {item['name']} ×{item['qty']} — {item['price'] * item['qty']:,.0f} so'm\n"
@@ -344,22 +348,14 @@ async def _handle_order(msg: Message, bot: Bot, data: dict) -> None:
         await bot.send_message(GROUP_ID, group_text, parse_mode="HTML")
         log.info("Group message sent OK")
     except Exception as e:
-        log.error("send_message failed: %s", e)
-        return
+        log.error("send_message to group failed: %s", e)
 
-    screenshot = data.get("screenshot")
-    if screenshot and screenshot.startswith("data:image"):
+    # Adminga ham yuborish
+    for admin_id in ADMIN_IDS:
         try:
-            _, b64data = screenshot.split(",", 1)
-            from aiogram.types import BufferedInputFile
-            photo = BufferedInputFile(base64.b64decode(b64data), filename="screenshot.jpg")
-            await bot.send_photo(
-                GROUP_ID, photo,
-                caption=f"Buyurtma #{order_id} — to'lov skrinshoti",
-            )
-            log.info("Screenshot sent OK")
+            await bot.send_message(admin_id, group_text, parse_mode="HTML")
         except Exception as e:
-            log.error("send_photo failed: %s", e)
+            log.error("send_message to admin %s failed: %s", admin_id, e)
 
 
 # ── Boot ──────────────────────────────────────────────────────────────────────
