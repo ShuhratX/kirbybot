@@ -1,0 +1,34 @@
+[
+  {
+    "id": 1,
+    "name_uz": "Mahsulot A",
+    "name_ru": "Продукт A",
+    "price": 50000,
+    "image_url": "https://ShuhratX.github.io/kirbybot/images/product_1.jpg",
+    "is_active": 1
+  },
+  {
+    "id": 2,
+    "name_uz": "Mahsulot B",
+    "name_ru": "Продукт B",
+    "price": 75000,
+    "image_url": "https://ShuhratX.github.io/kirbybot/images/product_2.jpg",
+    "is_active": 1
+  },
+  {
+    "id": 3,
+    "name_uz": "Mahsulot C",
+    "name_ru": "Продукт C",
+    "price": 120000,
+    "image_url": "https://ShuhratX.github.io/kirbybot/images/product_3.jpg",
+    "is_active": 1
+  },
+  {
+    "id": 4,
+    "name_uz": "Mahsulot D",
+    "name_ru": "Продукт D",
+    "price": 95000,
+    "image_url": "https://ShuhratX.github.io/kirbybot/images/product_4.jpg",
+    "is_active": 1
+  }
+]
