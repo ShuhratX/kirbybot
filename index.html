@@ -356,7 +356,9 @@ const TX = {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 async function boot() {
   try {
-    const res = await fetch("/api/products");
+    // GitHub Pages: products.json sits in the repo root
+    const res = await fetch("products.json");
+    if (!res.ok) throw new Error(res.status);
     PRODUCTS = await res.json();
   } catch {
     PRODUCTS = [];

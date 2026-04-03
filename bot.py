@@ -1,6 +1,10 @@
 import asyncio
+import base64
 import json
 import logging
+from urllib.parse import quote
+
+import aiohttp
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
@@ -15,15 +19,14 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
     WebAppInfo,
 )
-from config import ADMIN_IDS, BOT_TOKEN, GROUP_ID, WEBAPP_URL
+from config import (
+    ADMIN_IDS, BOT_TOKEN, GITHUB_BRANCH, GITHUB_FILE,
+    GITHUB_REPO, GITHUB_TOKEN, GROUP_ID, PAYMENT_CARD,
+    PAYMENT_OWNER, WEBAPP_URL,
+)
 from database import (
-    create_order,
-    get_products,
-    get_user,
-    init_db,
-    monthly_report,
-    toggle_product,
-    upsert_user,
+    create_order, get_products, get_user,
+    init_db, monthly_report, toggle_product, upsert_user,
 )
 from til import t
 
@@ -38,6 +41,55 @@ class Reg(StatesGroup):
     name = State()
 
 
+# ── GitHub Pages push ─────────────────────────────────────────────────────────
+
+async def push_products_json() -> bool:
+    """
+    Fetch active products from DB and push products.json to GitHub Pages branch.
+    Returns True on success, False on failure.
+    """
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        log.warning("GitHub credentials not configured — skipping push")
+        return False
+
+    products = await get_products(active_only=True)
+    content  = json.dumps(products, ensure_ascii=False, indent=2)
+    b64      = base64.b64encode(content.encode()).decode()
+
+    api_url  = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE}"
+    headers  = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept":        "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    async with aiohttp.ClientSession() as session:
+        # Get current SHA (needed for update)
+        sha = None
+        async with session.get(
+            api_url, headers=headers, params={"ref": GITHUB_BRANCH}
+        ) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                sha  = data.get("sha")
+
+        payload: dict = {
+            "message": "chore: update products.json",
+            "content": b64,
+            "branch":  GITHUB_BRANCH,
+        }
+        if sha:
+            payload["sha"] = sha
+
+        async with session.put(api_url, headers=headers, json=payload) as resp:
+            if resp.status in (200, 201):
+                log.info("products.json pushed to GitHub Pages")
+                return True
+            text = await resp.text()
+            log.error("GitHub push failed %s: %s", resp.status, text)
+            return False
+
+
 # ── Keyboards ─────────────────────────────────────────────────────────────────
 
 def _lang_kb(change: bool = False) -> InlineKeyboardMarkup:
@@ -48,25 +100,24 @@ def _lang_kb(change: bool = False) -> InlineKeyboardMarkup:
     ]])
 
 
-async def _products_kb() -> InlineKeyboardMarkup:
-    """One row per product: name + toggle button."""
-    products = await get_products(active_only=False)
-    rows = []
-    for p in products:
-        status = "✅" if p["is_active"] else "❌"
-        rows.append([InlineKeyboardButton(
-            text=f"{status} {p['name_uz']} — {int(p['price']):,} so'm",
-            callback_data=f"toggle:{p['id']}",
-        )])
-    rows.append([InlineKeyboardButton(text="🔙 Orqaga", callback_data="admin:back")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
 def _admin_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📦 Mahsulotlar",       callback_data="admin:products")],
-        [InlineKeyboardButton(text="📊 Oylik hisobot",     callback_data="admin:report")],
+        [InlineKeyboardButton(text="📦 Mahsulotlar",   callback_data="admin:products")],
+        [InlineKeyboardButton(text="📊 Oylik hisobot", callback_data="admin:report")],
     ])
+
+
+async def _products_kb() -> InlineKeyboardMarkup:
+    products = await get_products(active_only=False)
+    rows = [
+        [InlineKeyboardButton(
+            text=f"{'✅' if p['is_active'] else '❌'} {p['name_uz']} — {int(p['price']):,} so'm",
+            callback_data=f"toggle:{p['id']}",
+        )]
+        for p in products
+    ]
+    rows.append([InlineKeyboardButton(text="🔙 Orqaga", callback_data="admin:back")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 # ── /start ────────────────────────────────────────────────────────────────────
@@ -93,8 +144,8 @@ async def cb_lang_reg(cb: CallbackQuery, state: FSMContext) -> None:
 
 @router.message(Reg.name)
 async def reg_name(msg: Message, state: FSMContext) -> None:
-    data = await state.get_data()
-    lang = data.get("lang", "uz")
+    data      = await state.get_data()
+    lang      = data.get("lang", "uz")
     full_name = msg.text.strip()
     await upsert_user(msg.from_user.id, full_name=full_name, lang=lang)
     await state.clear()
@@ -105,14 +156,14 @@ async def reg_name(msg: Message, state: FSMContext) -> None:
 # ── Main menu ─────────────────────────────────────────────────────────────────
 
 async def show_main_menu(msg: Message, lang: str) -> None:
-    user_id   = msg.from_user.id
-    is_admin  = user_id in ADMIN_IDS
-    from config import PAYMENT_CARD, PAYMENT_OWNER
-    from urllib.parse import quote
+    user_id  = msg.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
     webapp_url = (
         f"{WEBAPP_URL}/webapp"
-        f"?user_id={user_id}&lang={lang}"
-        f"&card={quote(PAYMENT_CARD)}&owner={quote(PAYMENT_OWNER)}"
+        f"?lang={lang}"
+        f"&card={quote(PAYMENT_CARD)}"
+        f"&owner={quote(PAYMENT_OWNER)}"
     )
 
     rows = [
@@ -122,8 +173,10 @@ async def show_main_menu(msg: Message, lang: str) -> None:
     if is_admin:
         rows.insert(1, [KeyboardButton(text="⚙️ Admin")])
 
-    kb = ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
-    await msg.answer(t(lang, "main_menu"), reply_markup=kb)
+    await msg.answer(
+        t(lang, "main_menu"),
+        reply_markup=ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True),
+    )
 
 
 # ── Language change ───────────────────────────────────────────────────────────
@@ -156,54 +209,60 @@ async def admin_panel(msg: Message) -> None:
 @router.callback_query(F.data == "admin:products")
 async def cb_admin_products(cb: CallbackQuery) -> None:
     if cb.from_user.id not in ADMIN_IDS:
-        await cb.answer("Ruxsat yo'q", show_alert=True)
-        return
-    kb = await _products_kb()
-    await cb.message.edit_text("📦 <b>Mahsulotlar</b>\nFaolligini o'zgartirish uchun bosing:", parse_mode="HTML", reply_markup=kb)
+        await cb.answer("Ruxsat yo'q", show_alert=True); return
+    await cb.message.edit_text(
+        "📦 <b>Mahsulotlar</b>\nFaolligini o'zgartirish uchun bosing:",
+        parse_mode="HTML",
+        reply_markup=await _products_kb(),
+    )
     await cb.answer()
 
 
 @router.callback_query(F.data.startswith("toggle:"))
 async def cb_toggle(cb: CallbackQuery) -> None:
     if cb.from_user.id not in ADMIN_IDS:
-        await cb.answer("Ruxsat yo'q", show_alert=True)
-        return
+        await cb.answer("Ruxsat yo'q", show_alert=True); return
+
     product_id = int(cb.data.split(":")[1])
     try:
         new_state = await toggle_product(product_id)
-        status = "faollashtirildi ✅" if new_state else "o'chirildi ❌"
-        await cb.answer(f"Mahsulot {status}", show_alert=False)
-        kb = await _products_kb()
-        await cb.message.edit_reply_markup(reply_markup=kb)
     except ValueError as e:
-        await cb.answer(str(e), show_alert=True)
+        await cb.answer(str(e), show_alert=True); return
+
+    # Push updated products.json to GitHub Pages
+    ok = await push_products_json()
+    status_txt = "faollashtirildi ✅" if new_state else "o'chirildi ❌"
+    push_txt   = "" if ok else " (GitHub push muvaffaqiyatsiz ⚠️)"
+    await cb.answer(f"Mahsulot {status_txt}{push_txt}")
+    await cb.message.edit_reply_markup(reply_markup=await _products_kb())
 
 
 @router.callback_query(F.data == "admin:report")
 async def cb_admin_report(cb: CallbackQuery) -> None:
     if cb.from_user.id not in ADMIN_IDS:
-        await cb.answer("Ruxsat yo'q", show_alert=True)
-        return
+        await cb.answer("Ruxsat yo'q", show_alert=True); return
     report = await monthly_report()
-    text = (
-        "📊 <b>Oylik hisobot</b>\n\n"
+    await cb.message.edit_text(
+        f"📊 <b>Oylik hisobot</b>\n\n"
         f"Buyurtmalar soni: <b>{report['cnt']}</b>\n"
-        f"Jami daromad: <b>{report['revenue']:,.0f} so'm</b>"
+        f"Jami daromad: <b>{report['revenue']:,.0f} so'm</b>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Orqaga", callback_data="admin:back")]
+        ]),
     )
-    back_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 Orqaga", callback_data="admin:back")]
-    ])
-    await cb.message.edit_text(text, parse_mode="HTML", reply_markup=back_kb)
     await cb.answer()
 
 
 @router.callback_query(F.data == "admin:back")
 async def cb_admin_back(cb: CallbackQuery) -> None:
-    await cb.message.edit_text("⚙️ <b>Admin panel</b>", parse_mode="HTML", reply_markup=_admin_kb())
+    await cb.message.edit_text(
+        "⚙️ <b>Admin panel</b>", parse_mode="HTML", reply_markup=_admin_kb()
+    )
     await cb.answer()
 
 
-# ── WebApp order handler ──────────────────────────────────────────────────────
+# ── WebApp order ──────────────────────────────────────────────────────────────
 
 @router.message(F.web_app_data)
 async def webapp_data(msg: Message, bot: Bot) -> None:
@@ -212,14 +271,13 @@ async def webapp_data(msg: Message, bot: Bot) -> None:
     except (json.JSONDecodeError, AttributeError):
         log.error("Invalid webapp data: %s", msg.web_app_data.data)
         return
-
     if data.get("action") == "order":
         await _handle_order(msg, bot, data)
 
 
 async def _handle_order(msg: Message, bot: Bot, data: dict) -> None:
-    user   = await get_user(msg.from_user.id)
-    lang   = user["lang"] if user else "uz"
+    user = await get_user(msg.from_user.id)
+    lang = user["lang"] if user else "uz"
 
     order_id = await create_order({
         "user_id":    msg.from_user.id,
@@ -240,13 +298,13 @@ async def _handle_order(msg: Message, bot: Bot, data: dict) -> None:
     items_lines = "".join(
         f"  • {item['name']} ×{item['qty']} — {item['price'] * item['qty']:,.0f} so'm\n"
         for item in data.get("items", [])
-    ) or "  • Servis xizmati\n"
+    ) or "  • (bo'sh)\n"
 
     group_text = (
         f"🆕 <b>Yangi buyurtma #{order_id}</b>\n\n"
         f"👤 {user['full_name'] if user else 'N/A'}\n"
         f"📞 {data.get('phone', '—')}\n"
-        f"📦 Tur: {'Mahsulot' if data.get('order_type') == 'product' else 'Servis'}\n\n"
+        f"📍 {data.get('address', '—')}\n\n"
         f"{items_lines}\n"
         f"💰 Jami: <b>{data.get('total', 0):,.0f} so'm</b>\n"
         f"💬 Izoh: {data.get('comment') or '—'}"
@@ -254,8 +312,18 @@ async def _handle_order(msg: Message, bot: Bot, data: dict) -> None:
 
     try:
         await bot.send_message(GROUP_ID, group_text, parse_mode="HTML")
+
+        screenshot = data.get("screenshot")
+        if screenshot and screenshot.startswith("data:image"):
+            _, b64data = screenshot.split(",", 1)
+            from aiogram.types import BufferedInputFile
+            photo = BufferedInputFile(base64.b64decode(b64data), filename="screenshot.jpg")
+            await bot.send_photo(
+                GROUP_ID, photo,
+                caption=f"Buyurtma #{order_id} — to'lov skrinshoti",
+            )
     except Exception as e:
-        log.error("Group message failed: %s", e)
+        log.error("Group send failed: %s", e)
 
 
 # ── Boot ──────────────────────────────────────────────────────────────────────
