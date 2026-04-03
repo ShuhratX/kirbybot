@@ -279,8 +279,9 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
       <div class="field-label" id="lbl-phone"></div>
       <div style="display:flex;gap:8px;align-items:center">
         <span style="padding:11px 14px;background:#f1f5f9;border:1.5px solid var(--border);border-radius:10px;font-weight:600;white-space:nowrap">+998</span>
-        <input class="field-input" id="inp-phone" type="tel" maxlength="9" pattern="[0-9]{9}" placeholder="90 123 45 67" style="flex:1">
+        <input class="field-input" id="inp-phone" type="tel" maxlength="9" pattern="[0-9]{9}" placeholder="90 123 45 67" style="flex:1" oninput="clearPhoneErr()">
       </div>
+      <div id="phone-err" style="display:none;color:#ef4444;font-size:.8rem;margin-top:6px;font-weight:600"></div>
     </div>
     <button class="btn-primary" id="btn-phone-next" onclick="phoneNext()"></button>
   </div>
@@ -607,9 +608,22 @@ function showStep(id) {
 
 // ── Phone ─────────────────────────────────────────────────────────────────────
 function phoneNext() {
-  const raw    = document.getElementById("inp-phone").value.replace(/\D/g, "");
-  if (raw.length !== 9) { alert(TX[LANG].err_phone); return; }
+  const raw = document.getElementById("inp-phone").value.replace(/\D/g, "");
+  if (raw.length !== 9) {
+    const err = document.getElementById("phone-err");
+    err.textContent = TX[LANG].err_phone;
+    err.style.display = "block";
+    document.getElementById("inp-phone").style.borderColor = "#ef4444";
+    document.getElementById("inp-phone").focus();
+    return;
+  }
   goStep("step-location");
+}
+
+function clearPhoneErr() {
+  const err = document.getElementById("phone-err");
+  err.style.display = "none";
+  document.getElementById("inp-phone").style.borderColor = "";
 }
 
 // ── Map ───────────────────────────────────────────────────────────────────────
