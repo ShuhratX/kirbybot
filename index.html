@@ -558,22 +558,31 @@ function copyCard() {
 
 function handleScreenshot(input) {
   const file = input.files[0];
-  if (!file) return;
+  if (!file) { alert("Fayl tanlanmadi"); return; }
+  alert("Fayl tanlandi: " + file.name + " (" + file.size + " bytes)");
   const reader = new FileReader();
+  reader.onerror = e => alert("FileReader xatosi: " + e);
   reader.onload = e => {
+    alert("FileReader yukladi");
     const img = new Image();
+    img.onerror = e => alert("Image yuklash xatosi: " + e);
     img.onload = () => {
-      // Resize to max 800px wide to keep sendData payload small
-      const MAX = 800;
-      const scale = img.width > MAX ? MAX / img.width : 1;
-      const canvas = document.createElement("canvas");
-      canvas.width  = Math.round(img.width  * scale);
-      canvas.height = Math.round(img.height * scale);
-      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-      screenshotB64 = canvas.toDataURL("image/jpeg", 0.8);
-      const preview = document.getElementById("preview-img");
-      preview.src = screenshotB64; preview.style.display = "block";
-      document.getElementById("upload-area").classList.add("has-file");
+      alert("Image yuklandi: " + img.width + "x" + img.height);
+      try {
+        const MAX = 800;
+        const scale = img.width > MAX ? MAX / img.width : 1;
+        const canvas = document.createElement("canvas");
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        screenshotB64 = canvas.toDataURL("image/jpeg", 0.8);
+        alert("Base64 tayyor, uzunlik: " + screenshotB64.length);
+        const preview = document.getElementById("preview-img");
+        preview.src = screenshotB64; preview.style.display = "block";
+        document.getElementById("upload-area").classList.add("has-file");
+      } catch(e) {
+        alert("Canvas xatosi: " + e.message);
+      }
     };
     img.src = e.target.result;
   };
