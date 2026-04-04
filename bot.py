@@ -111,17 +111,30 @@ def _admin_kb() -> InlineKeyboardMarkup:
     ])
 
 
-async def _products_kb() -> InlineKeyboardMarkup:
-    products = await get_products(active_only=False)
-    rows = [
-        [InlineKeyboardButton(
-            text=f"{'✅' if p['is_active'] else '❌'} {p['name_uz']} — {int(p['price']):,} so'm",
-            callback_data=f"toggle:{p['id']}",
-        )]
-        for p in products
-    ]
-    rows.append([InlineKeyboardButton(text="🔙 Orqaga", callback_data="admin:back")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+async def _products_kb(lang: str, active_only: bool = False):  # Default False turaversin
+    # Bazadan hammasini olamiz
+    products = await get_products()
+
+    # AGAR mijoz uchun bo'lsa (active_only=True bo'lib kelsa), filtrlaymiz
+    if active_only:
+        products = [p for p in products if p.get("is_active") == 1]
+
+    if not products:
+        return None
+
+    products_json = json.dumps(products)
+    encoded_products = quote(products_json)
+
+    # WebApp URL endi faqat filtrgan mahsulotlarni o'z ichiga oladi
+    webapp_url_with_data = f"{WEBAPP_URL}?products={encoded_products}"
+
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=t(lang, "buyurtma_berish"), web_app=WebAppInfo(url=webapp_url_with_data))],
+            [KeyboardButton(text=t(lang, "back"))]
+        ],
+        resize_keyboard=True
+    )
 
 
 # ── /start ────────────────────────────────────────────────────────────────────
@@ -305,21 +318,32 @@ async def handle_screenshot(msg: Message, bot: Bot, state: FSMContext) -> None:
         f"🆕 <b>Yangi buyurtma #{order_id}</b>\n\n"
         f"👤 {user['full_name'] if user else 'N/A'}\n"
         f"📞 {data.get('phone', '—')}\n"
-        f"📍 {data.get('address', '—')}\n\n"
         f"{items_lines}"
         f"💰 Jami: <b>{data.get('total', 0):,.0f} so'm</b>\n"
         f"💬 Izoh: {data.get('comment') or '—'}"
     )
 
     targets = list({GROUP_ID, *ADMIN_IDS})
+    targets = list({GROUP_ID, *ADMIN_IDS})
     for target in targets:
         try:
+            # Avval foto va caption yuboriladi
             await bot.send_photo(
-                target, msg.photo[-1].file_id,
-                caption=caption, parse_mode="HTML",
+                target,
+                msg.photo[-1].file_id,
+                caption=caption,
+                parse_mode="HTML"
             )
+
+            # Keyin nativ lokatsiya yuboriladi
+            if data.get("latitude") and data.get("longitude"):
+                await bot.send_location(
+                    chat_id=target,
+                    latitude=float(data["latitude"]),
+                    longitude=float(data["longitude"])
+                )
         except Exception as e:
-            log.error("send_photo to %s failed: %s", target, e)
+            log.error("send_photo/location to %s failed: %s", target, e)
 
     await msg.answer(t(lang, "order_received"))
 
@@ -366,19 +390,27 @@ async def _handle_texosmotr(msg: Message, bot: Bot, data: dict) -> None:
         return
 
     caption = (
-        f"🚗 <b>Texosmotr buyurtmasi #{order_id}</b>\n\n"
+        f"🛠 <b>Texosmotr buyurtmasi #{order_id}</b>\n\n"
         f"👤 {user['full_name'] if user else 'N/A'}\n"
         f"📞 {data.get('phone', '—')}\n"
-        f"📍 {data.get('address', '—')}\n"
         f"📅 Muddat: {data.get('duration', '—')}"
     )
 
     targets = list({GROUP_ID, *ADMIN_IDS})
     for target in targets:
         try:
+            # Ma'lumotlar xabari
             await bot.send_message(target, caption, parse_mode="HTML")
+
+            # Nativ lokatsiya
+            if data.get("latitude") and data.get("longitude"):
+                await bot.send_location(
+                    chat_id=target,
+                    latitude=float(data["latitude"]),
+                    longitude=float(data["longitude"])
+                )
         except Exception as e:
-            log.error("send_message texosmotr to %s failed: %s", target, e)
+            log.error("send_message/location texosmotr to %s failed: %s", target, e)
 
     await msg.answer(t(lang, "order_received"))
 
