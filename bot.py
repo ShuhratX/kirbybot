@@ -19,6 +19,8 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
     WebAppInfo,
 )
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
 from config import (
     ADMIN_IDS, BOT_TOKEN, GITHUB_BRANCH, GITHUB_FILE,
     GITHUB_REPO, GITHUB_TOKEN, GROUP_ID, PAYMENT_CARD,
@@ -52,46 +54,58 @@ async def push_products_json() -> bool:
     Fetch active products from DB and push products.json to GitHub Pages branch.
     Returns True on success, False on failure.
     """
+    products = await get_products(active_only=True)
+    content = json.dumps(products, ensure_ascii=False, indent=2)
+
+    # 1. Lokal fayl
+    try:
+        with open("products.json", "w", encoding="utf-8") as f:
+            f.write(content)
+        log.info("products.json updated locally")
+    except Exception as e:
+        log.error("Local products.json write failed: %s", e)
+
+    # 2. GitHub (agar credentials bo'lsa)
     if not GITHUB_TOKEN or not GITHUB_REPO:
         log.warning("GitHub credentials not configured — skipping push")
-        return False
+        return True  # lokal muvaffaqiyatli bo'lsa yetarli
 
-    products = await get_products(active_only=True)
-    content  = json.dumps(products, ensure_ascii=False, indent=2)
-    b64      = base64.b64encode(content.encode()).decode()
-
-    api_url  = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE}"
-    headers  = {
+    b64 = base64.b64encode(content.encode()).decode()
+    api_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE}"
+    headers = {
         "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept":        "application/vnd.github+json",
+        "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
     }
 
-    async with aiohttp.ClientSession() as session:
-        # Get current SHA (needed for update)
-        sha = None
-        async with session.get(
-            api_url, headers=headers, params={"ref": GITHUB_BRANCH}
-        ) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                sha  = data.get("sha")
+    try:
+        async with aiohttp.ClientSession() as session:
+            sha = None
+            async with session.get(
+                    api_url, headers=headers, params={"ref": GITHUB_BRANCH}
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    sha = data.get("sha")
 
-        payload: dict = {
-            "message": "chore: update products.json",
-            "content": b64,
-            "branch":  GITHUB_BRANCH,
-        }
-        if sha:
-            payload["sha"] = sha
+            payload: dict = {
+                "message": "chore: update products.json",
+                "content": b64,
+                "branch": GITHUB_BRANCH,
+            }
+            if sha:
+                payload["sha"] = sha
 
-        async with session.put(api_url, headers=headers, json=payload) as resp:
-            if resp.status in (200, 201):
-                log.info("products.json pushed to GitHub Pages")
-                return True
-            text = await resp.text()
-            log.error("GitHub push failed %s: %s", resp.status, text)
-            return False
+            async with session.put(api_url, headers=headers, json=payload) as resp:
+                if resp.status in (200, 201):
+                    log.info("products.json pushed to GitHub Pages")
+                else:
+                    body = await resp.text()
+                    log.error("GitHub push failed: %s | %s", resp.status, body)
+    except Exception as e:
+        log.error("GitHub push exception: %s", e)
+
+    return True
 
 
 # ── Keyboards ─────────────────────────────────────────────────────────────────
@@ -111,30 +125,18 @@ def _admin_kb() -> InlineKeyboardMarkup:
     ])
 
 
-async def _products_kb(lang: str, active_only: bool = False):  # Default False turaversin
-    # Bazadan hammasini olamiz
-    products = await get_products()
-
-    # AGAR mijoz uchun bo'lsa (active_only=True bo'lib kelsa), filtrlaymiz
-    if active_only:
-        products = [p for p in products if p.get("is_active") == 1]
-
-    if not products:
-        return None
-
-    products_json = json.dumps(products)
-    encoded_products = quote(products_json)
-
-    # WebApp URL endi faqat filtrgan mahsulotlarni o'z ichiga oladi
-    webapp_url_with_data = f"{WEBAPP_URL}?products={encoded_products}"
-
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=t(lang, "buyurtma_berish"), web_app=WebAppInfo(url=webapp_url_with_data))],
-            [KeyboardButton(text=t(lang, "back"))]
-        ],
-        resize_keyboard=True
-    )
+async def _products_kb(lang: str) -> InlineKeyboardMarkup:
+    products = await get_products(active_only=False)
+    builder = InlineKeyboardBuilder()
+    for p in products:
+        name = p["name_uz"] if lang == "uz" else p["name_ru"]
+        status = "✅" if p["is_active"] else "❌"
+        builder.button(
+            text=f"{status} {name}",
+            callback_data=f"toggle_product:{p['id']}"
+        )
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 # ── /start ────────────────────────────────────────────────────────────────────
@@ -173,14 +175,21 @@ async def reg_name(msg: Message, state: FSMContext) -> None:
 # ── Main menu ─────────────────────────────────────────────────────────────────
 
 async def show_main_menu(msg: Message, lang: str) -> None:
-    user_id  = msg.from_user.id
+    user_id = msg.from_user.id
     is_admin = user_id in ADMIN_IDS
+
+    # DB dan faqat aktiv mahsulotlarni ol
+    products = await get_products(active_only=True)
+    products_b64 = base64.b64encode(
+        json.dumps(products, ensure_ascii=False).encode()
+    ).decode()
 
     webapp_url = (
         f"{WEBAPP_URL}"
         f"?lang={lang}"
         f"&card={quote(PAYMENT_CARD)}"
         f"&owner={quote(PAYMENT_OWNER)}"
+        f"&products={quote(products_b64)}"
     )
 
     rows = [
@@ -227,15 +236,17 @@ async def admin_panel(msg: Message) -> None:
 async def cb_admin_products(cb: CallbackQuery) -> None:
     if cb.from_user.id not in ADMIN_IDS:
         await cb.answer("Ruxsat yo'q", show_alert=True); return
+    user = await get_user(cb.from_user.id)
+    lang = user["lang"] if user else "uz"
     await cb.message.edit_text(
         "📦 <b>Mahsulotlar</b>\nFaolligini o'zgartirish uchun bosing:",
         parse_mode="HTML",
-        reply_markup=await _products_kb(),
+        reply_markup=await _products_kb(lang),
     )
     await cb.answer()
 
 
-@router.callback_query(F.data.startswith("toggle:"))
+@router.callback_query(F.data.startswith("toggle_product:"))
 async def cb_toggle(cb: CallbackQuery) -> None:
     if cb.from_user.id not in ADMIN_IDS:
         await cb.answer("Ruxsat yo'q", show_alert=True); return
@@ -247,11 +258,13 @@ async def cb_toggle(cb: CallbackQuery) -> None:
         await cb.answer(str(e), show_alert=True); return
 
     # Push updated products.json to GitHub Pages
+    user = await get_user(cb.from_user.id)
+    lang = user["lang"] if user else "uz"
     ok = await push_products_json()
     status_txt = "faollashtirildi ✅" if new_state else "o'chirildi ❌"
     push_txt   = "" if ok else " (GitHub push muvaffaqiyatsiz ⚠️)"
     await cb.answer(f"Mahsulot {status_txt}{push_txt}")
-    await cb.message.edit_reply_markup(reply_markup=await _products_kb())
+    await cb.message.edit_reply_markup(reply_markup=await _products_kb(lang=lang))
 
 
 @router.callback_query(F.data == "admin:report")
@@ -310,7 +323,7 @@ async def handle_screenshot(msg: Message, bot: Bot, state: FSMContext) -> None:
         return
 
     items_lines = "".join(
-        f"  • {item['name']} ×{item['qty']} — {item['price'] * item['qty']:,.0f} so'm\n"
+        f"  • {item['name']} × {item['qty']} — {item['price'] * item['qty']:,.0f} so'm\n"
         for item in data.get("items", [])
     ) or "  • (bo'sh)\n"
 
@@ -430,6 +443,7 @@ async def _handle_order(msg: Message, data: dict, state: FSMContext) -> None:
 
 async def main() -> None:
     await init_db()
+    await push_products_json()
     bot = Bot(token=BOT_TOKEN)
     dp  = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)

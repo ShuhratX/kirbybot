@@ -120,6 +120,33 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 #map {
   width: 100%; height: 260px; border-radius: var(--radius);
   border: 1.5px solid var(--border); margin-bottom: 8px; z-index: 1;
+  position: relative;
+}
+
+/* Qo'shimcha CSS — shu blokdan keyin qo'shing: */
+.map-controls {
+  position: absolute; top: 8px; right: 8px; z-index: 1000;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.map-ctrl-btn {
+  background: var(--card); border: 1.5px solid var(--border);
+  border-radius: 8px; width: 36px; height: 36px;
+  font-size: 1rem; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,.15);
+}
+.search-box {
+  display: flex; gap: 6px; margin-bottom: 8px;
+}
+.search-input {
+  flex: 1; padding: 8px 10px; border-radius: 8px;
+  border: 1.5px solid var(--border); background: var(--card);
+  color: var(--text); font-size: .85rem;
+}
+.search-btn {
+  padding: 8px 12px; border-radius: 8px;
+  background: var(--primary); color: #fff;
+  border: none; font-size: .85rem; cursor: pointer;
 }
 .map-hint { font-size: .78rem; color: var(--muted); margin-bottom: 10px; }
 .coords-display { font-size: .78rem; color: var(--muted); text-align: center; margin-bottom: 10px; min-height: 16px; }
@@ -294,11 +321,20 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
     <h2 id="h-location"></h2>
   </div>
   <div class="body">
-    <p class="map-hint" id="lbl-map-hint"></p>
-    <div id="map"></div>
-    <div class="coords-display" id="coords-display"></div>
-    <button class="btn-primary" id="btn-loc-next" onclick="locationNext()"></button>
+  <p class="map-hint" id="lbl-map-hint"></p>
+  <div class="search-box">
+    <input class="search-input" id="search-input" type="text" placeholder="Manzil qidiring..."/>
+    <button class="search-btn" onclick="searchAddress()">🔍</button>
   </div>
+  <div style="position:relative">
+    <div id="map"></div>
+    <div class="map-controls">
+      <button class="map-ctrl-btn" onclick="locateMe()" title="Mening joylashuvim">📍</button>
+    </div>
+  </div>
+  <div class="coords-display" id="coords-display"></div>
+  <button class="btn-primary" id="btn-loc-next" onclick="locationNext()"></button>
+</div>
 </div>
 
 <!-- Step 5: Duration -->
@@ -350,7 +386,9 @@ const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 
 // ── Config from URL params ────────────────────────────────────────────────────
-const params        = new URLSearchParams(location.search);
+const params = new URLSearchParams(window.location.search);
+const _raw = params.get('products');
+const products = _raw ? JSON.parse(atob(_raw)) : [];
 let   LANG          = params.get("lang")  || "uz";
 const PAYMENT_CARD  = params.get("card")  || "";
 const PAYMENT_OWNER = params.get("owner") || "";
@@ -438,10 +476,7 @@ const TX = {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 async function boot() {
   try {
-    // GitHub Pages: products.json sits in the repo root
-    const res = await fetch("products.json");
-    if (!res.ok) throw new Error(res.status);
-    PRODUCTS = await res.json();
+    PRODUCTS = products.length ? products : [];
   } catch {
     PRODUCTS = [];
   }
@@ -653,6 +688,39 @@ function initMap() {
     });
   }
   setTimeout(() => map.invalidateSize(), 300);
+}
+
+// ── Mening joylashuvim ────────────────────────────────────────────────────────
+function locateMe() {
+  if (!navigator.geolocation) { alert("Geolokatsiya qo'llab-quvvatlanmaydi"); return; }
+  navigator.geolocation.getCurrentPosition(
+    ({ coords: { latitude: lat, longitude: lng } }) => {
+      map.setView([lat, lng], 16);
+      leafMarker.setLatLng([lat, lng]);
+      markerLat = lat; markerLng = lng; updateCoords();
+    },
+    () => alert("Joylashuv aniqlanmadi. Ruxsat bering.")
+  );
+}
+
+// ── Manzil qidirish (Nominatim) ───────────────────────────────────────────────
+async function searchAddress() {
+  const q = document.getElementById("search-input").value.trim();
+  if (!q) return;
+  try {
+    const res  = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
+      { headers: { "Accept-Language": "uz,ru" } }
+    );
+    const data = await res.json();
+    if (!data.length) { alert("Manzil topilmadi"); return; }
+    const { lat, lon } = data[0];
+    map.setView([+lat, +lon], 16);
+    leafMarker.setLatLng([+lat, +lon]);
+    markerLat = +lat; markerLng = +lon; updateCoords();
+  } catch {
+    alert("Qidirishda xatolik");
+  }
 }
 
 function updateCoords() {
