@@ -2,6 +2,8 @@ import asyncio
 import base64
 import json
 import logging
+import re
+from datetime import date as Date
 from urllib.parse import quote
 
 import aiohttp
@@ -17,7 +19,7 @@ from aiogram.types import (
     KeyboardButton,
     Message,
     ReplyKeyboardMarkup,
-    WebAppInfo,
+    WebAppInfo, BufferedInputFile,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -28,8 +30,9 @@ from config import (
 )
 from database import (
     create_order, get_products, get_user,
-    init_db, monthly_report, toggle_product, upsert_user,
+    init_db, monthly_report, toggle_product, upsert_user, report_by_range,
 )
+from report_excel import build_report
 from til import t
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -46,6 +49,9 @@ class Reg(StatesGroup):
 class Order(StatesGroup):
     waiting_screenshot = State()
 
+
+class AdminReport(StatesGroup):
+    date_range = State()
 
 # ── GitHub Pages push ─────────────────────────────────────────────────────────
 
@@ -189,7 +195,6 @@ async def show_main_menu(msg: Message, lang: str) -> None:
         f"?lang={lang}"
         f"&card={quote(PAYMENT_CARD)}"
         f"&owner={quote(PAYMENT_OWNER)}"
-        f"&products={quote(products_b64)}"
     )
 
     rows = [
@@ -270,18 +275,93 @@ async def cb_toggle(cb: CallbackQuery) -> None:
 @router.callback_query(F.data == "admin:report")
 async def cb_admin_report(cb: CallbackQuery) -> None:
     if cb.from_user.id not in ADMIN_IDS:
-        await cb.answer("Ruxsat yo'q", show_alert=True); return
-    report = await monthly_report()
+        await cb.answer("Ruxsat yo'q", show_alert=True);
+        return
+
+    today = Date.today()
+    month_start = today.replace(day=1).isoformat()  # "2025-07-01"
+    month_end = today.isoformat()
+
     await cb.message.edit_text(
-        f"📊 <b>Oylik hisobot</b>\n\n"
-        f"Buyurtmalar soni: <b>{report['cnt']}</b>\n"
-        f"Jami daromad: <b>{report['revenue']:,.0f} so'm</b>",
+        "📊 <b>Hisobot davri</b>\n\n"
+        "Joriy oyni yoki o'z sanangizni tanlang:",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔙 Orqaga", callback_data="admin:back")]
-        ]),
+            [InlineKeyboardButton(
+                text=f"📅 Joriy oy ({month_start[:7]})",
+                callback_data=f"report_range:{month_start}:{month_end}"
+            )],
+            [InlineKeyboardButton(
+                text="✏️ Boshqa sana kiritish",
+                callback_data="report_custom"
+            )],
+            [InlineKeyboardButton(text="🔙 Orqaga", callback_data="admin:back")],
+        ])
     )
     await cb.answer()
+
+
+@router.callback_query(F.data.startswith("report_range:"))
+async def cb_report_range(cb: CallbackQuery) -> None:
+    if cb.from_user.id not in ADMIN_IDS:
+        await cb.answer("Ruxsat yo'q", show_alert=True);
+        return
+
+    _, date_from, date_to = cb.data.split(":")
+    await cb.answer("Hisobot tayyorlanmoqda...")
+
+    rows = await report_by_range(date_from, date_to)
+    if not rows:
+        await cb.message.answer("❌ Bu davr uchun buyurtma topilmadi.")
+        return
+
+    xlsx_bytes = build_report(rows, date_from, date_to)
+    file = BufferedInputFile(xlsx_bytes, filename=f"hisobot_{date_from}_{date_to}.xlsx")
+    await cb.message.answer_document(file, caption=f"📊 {date_from} — {date_to} hisoboti\nJami: {len(rows)} ta buyurtma")
+
+
+@router.callback_query(F.data == "report_custom")
+async def cb_report_custom(cb: CallbackQuery, state: FSMContext) -> None:
+    if cb.from_user.id not in ADMIN_IDS:
+        await cb.answer("Ruxsat yo'q", show_alert=True); return
+    await state.set_state(AdminReport.date_range)
+    await cb.message.answer(
+        "📅 Boshlang'ich va tugash sanasini kiriting:\n\n"
+        "<code>01.03.2026 - 30.03.2026</code>",
+        parse_mode="HTML"
+    )
+    await cb.answer()
+
+
+@router.message(AdminReport.date_range)
+async def get_date_range(msg: Message, state: FSMContext) -> None:
+    if msg.from_user.id not in ADMIN_IDS:
+        await state.clear()
+        return
+
+    parsed = parse_date_range(msg.text or "")
+    if not parsed:
+        await msg.answer(
+            "❌ Format noto'g'ri. Quyidagicha kiriting:\n\n"
+            "<code>01.03.2026 30.03.2026</code>",
+            parse_mode="HTML"
+        )
+        return
+
+    date_from, date_to = parsed
+    await state.clear()
+
+    rows = await report_by_range(date_from, date_to)
+    if not rows:
+        await msg.answer("❌ Bu davr uchun buyurtma topilmadi.")
+        return
+
+    xlsx_bytes = build_report(rows, date_from, date_to)
+    file = BufferedInputFile(xlsx_bytes, filename=f"hisobot_{date_from}_{date_to}.xlsx")
+    await msg.answer_document(
+        file,
+        caption=f"📊 {date_from} — {date_to} hisoboti\nJami: {len(rows)} ta buyurtma",
+    )
 
 
 @router.callback_query(F.data == "admin:back")
@@ -336,7 +416,6 @@ async def handle_screenshot(msg: Message, bot: Bot, state: FSMContext) -> None:
         f"💬 Izoh: {data.get('comment') or '—'}"
     )
 
-    targets = list({GROUP_ID, *ADMIN_IDS})
     targets = list({GROUP_ID, *ADMIN_IDS})
     for target in targets:
         try:
@@ -437,6 +516,22 @@ async def _handle_order(msg: Message, data: dict, state: FSMContext) -> None:
     await state.update_data(order_data=data, order_lang=lang)
     await state.set_state(Order.waiting_screenshot)
     await msg.answer(t(lang, "send_screenshot"))
+
+
+def parse_date_range(text: str) -> tuple[str, str] | None:
+    text = text.strip()
+
+    # dd.mm.yyyy — dd.mm.yyyy  (tire yoki vergul separator)
+    dot = re.findall(r'\d{2}\.\d{2}\.\d{4}', text)
+    if len(dot) == 2:
+        try:
+            d1 = Date(int(dot[0][6:]), int(dot[0][3:5]), int(dot[0][:2]))
+            d2 = Date(int(dot[1][6:]), int(dot[1][3:5]), int(dot[1][:2]))
+            return d1.isoformat(), d2.isoformat()
+        except ValueError:
+            pass
+
+    return None
 
 
 # ── Boot ──────────────────────────────────────────────────────────────────────

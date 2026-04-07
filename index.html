@@ -386,15 +386,13 @@ const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 
 // ── Config from URL params ────────────────────────────────────────────────────
-const params = new URLSearchParams(window.location.search);
-const _raw = params.get('products');
-const products = _raw ? JSON.parse(atob(_raw)) : [];
+const params        = new URLSearchParams(window.location.search);
 let   LANG          = params.get("lang")  || "uz";
 const PAYMENT_CARD  = params.get("card")  || "";
 const PAYMENT_OWNER = params.get("owner") || "";
 
 let PRODUCTS = [];
-const cart   = {}; // { id: qty }
+const cart   = {};
 
 let markerLat = null, markerLng = null;
 let selectedDuration = null;
@@ -476,7 +474,8 @@ const TX = {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 async function boot() {
   try {
-    PRODUCTS = products.length ? products : [];
+    const res = await fetch("products.json?t=" + Date.now()); // cache bypass
+    PRODUCTS = await res.json();
   } catch {
     PRODUCTS = [];
   }

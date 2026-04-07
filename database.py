@@ -181,3 +181,31 @@ async def monthly_report() -> dict:
         )
         row = await cursor.fetchone()
         return {"cnt": row[0], "revenue": float(row[1])}
+
+
+async def report_by_range(date_from: str, date_to: str) -> list[dict]:
+    """
+    date_from, date_to: 'YYYY-MM-DD' formatida.
+    Har bir buyurtma uchun: mijoz ismi, telefon, items (JSON), total qaytaradi.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            """
+            SELECT
+                o.id,
+                u.full_name,
+                o.phone,
+                o.items,
+                o.total,
+                o.created_at
+            FROM orders o
+            LEFT JOIN users u ON u.user_id = o.user_id
+            WHERE date(o.created_at) BETWEEN ? AND ?
+              AND o.status != 'cancelled'
+            ORDER BY o.created_at
+            """,
+            (date_from, date_to),
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
