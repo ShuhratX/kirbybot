@@ -241,7 +241,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   /* ── Product modal ── */
 .modal-overlay {
   display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,.45); z-index: 200;
+  background: rgba(0,0,0,.45); z-index: 1100;
   align-items: flex-end; justify-content: center;
 }
 .modal-overlay.open { display: flex; }
@@ -603,7 +603,7 @@ function renderProducts() {
 }
 
 function openModal(id) {
-  const p    = PRODUCTS.find(x => x.id === id);
+  const p    = PRODUCTS.find(x => x.id === Number(id));
   if (!p) return;
   const name = LANG === "ru" ? p.name_ru : p.name_uz;
   const desc = LANG === "ru" ? (p.desc_ru || "") : (p.desc_uz || "");
