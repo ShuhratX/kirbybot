@@ -41,6 +41,8 @@ async def _create_schema(db: aiosqlite.Connection) -> None:
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             name_uz    TEXT    NOT NULL,
             name_ru    TEXT    NOT NULL,
+            desc_uz    TEXT,
+            desc_ru    TEXT,
             price      REAL    NOT NULL,
             image_url  TEXT,
             is_active  INTEGER NOT NULL DEFAULT 1,
@@ -72,12 +74,12 @@ async def _seed_products(db: aiosqlite.Connection) -> None:
     if row and row[0]:
         return
     await db.executemany(
-        "INSERT INTO products (name_uz, name_ru, price, image_url) VALUES (?,?,?,?)",
+        "INSERT INTO products (name_uz, name_ru, desc_uz, desc_ru, price, image_url) VALUES (?,?,?,?,?,?)",
         [
-            ("Mahsulot A", "Продукт A", 50000, "https://placehold.co/300x200/0ea5e9/fff?text=A"),
-            ("Mahsulot B", "Продукт B", 75000, "https://placehold.co/300x200/0284c7/fff?text=B"),
-            ("Mahsulot C", "Продукт C", 120000, "https://placehold.co/300x200/0369a1/fff?text=C"),
-            ("Mahsulot D", "Продукт D", 95000, "https://placehold.co/300x200/075985/fff?text=D"),
+            ("Mahsulot A", "Продукт A", "A mahsuloti haqida qisqacha tavsif.", "Краткое описание продукта A.", 50000, "https://placehold.co/300x200/0ea5e9/fff?text=A"),
+            ("Mahsulot B", "Продукт B", "B mahsuloti haqida qisqacha tavsif.", "Краткое описание продукта B.", 75000, "https://placehold.co/300x200/0284c7/fff?text=B"),
+            ("Mahsulot C", "Продукт C", "C mahsuloti haqida qisqacha tavsif.", "Краткое описание продукта C.", 120000, "https://placehold.co/300x200/0369a1/fff?text=C"),
+            ("Mahsulot D", "Продукт D", "D mahsuloti haqida qisqacha tavsif.", "Краткое описание продукта D.", 95000, "https://placehold.co/300x200/075985/fff?text=D"),
         ],
     )
 

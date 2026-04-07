@@ -237,6 +237,32 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .dur-chip-label { font-size: 1rem; font-weight: 700; }
 .dur-chip-sub { font-size: .8rem; color: var(--muted); }
 .dur-chip.selected .dur-chip-sub { color: var(--accent-dark); }
+
+  /* ── Product modal ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.45); z-index: 200;
+  align-items: flex-end; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal-sheet {
+  background: var(--surface); border-radius: 20px 20px 0 0;
+  padding: 20px 18px 32px; width: 100%; max-height: 85vh;
+  overflow-y: auto; animation: slideUp .25s ease;
+}
+@keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.modal-img { width: 100%; height: 180px; object-fit: cover; border-radius: 12px; margin-bottom: 14px; }
+.modal-name { font-size: 1.05rem; font-weight: 700; margin-bottom: 6px; }
+.modal-price { font-size: 1rem; font-weight: 700; color: var(--accent-dark); margin-bottom: 12px; }
+.modal-desc { font-size: .88rem; color: var(--muted); line-height: 1.6; margin-bottom: 18px; }
+.modal-close {
+  position: absolute; top: 14px; right: 14px;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--bg); border: 1px solid var(--border);
+  font-size: 1rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-sheet { position: relative; }
 </style>
 </head>
 <body>
@@ -378,6 +404,17 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
     <div class="success-icon">🎉</div>
     <div class="success-title" id="s-title"></div>
     <div class="success-sub"   id="s-sub"></div>
+  </div>
+</div>
+
+<!-- Product detail modal -->
+<div class="modal-overlay" id="product-modal" onclick="closeModal(event)">
+  <div class="modal-sheet">
+    <button class="modal-close" onclick="document.getElementById('product-modal').classList.remove('open')">✕</button>
+    <img class="modal-img" id="modal-img" src="" alt="">
+    <div class="modal-name" id="modal-name"></div>
+    <div class="modal-price" id="modal-price"></div>
+    <div class="modal-desc" id="modal-desc"></div>
   </div>
 </div>
 
@@ -548,9 +585,11 @@ function renderProducts() {
     div.className = "card";
     div.innerHTML = `
       <img src="${esc(p.image_url)}" alt="${esc(name)}"
+           style="cursor:pointer"
+           onclick="openModal(${p.id})"
            onerror="this.src='https://placehold.co/300x200/e0f2fe/0284c7?text=?'">
       <div class="card-body">
-        <div class="card-name">${esc(name)}</div>
+        <div class="card-name" style="cursor:pointer" onclick="openModal(${p.id})">${esc(name)}</div>
         <div class="card-price">${fmt(p.price)}</div>
         <div class="qty-row">
           <button class="qty-btn minus" onclick="chQty(${p.id},-1)">−</button>
@@ -561,6 +600,26 @@ function renderProducts() {
     grid.appendChild(div);
   });
   updateCartBar();
+}
+
+function openModal(id) {
+  const p    = PRODUCTS.find(x => x.id === id);
+  if (!p) return;
+  const name = LANG === "ru" ? p.name_ru : p.name_uz;
+  const desc = LANG === "ru" ? (p.desc_ru || "") : (p.desc_uz || "");
+  document.getElementById("modal-img").src   = p.image_url || "";
+  document.getElementById("modal-img").alt   = name;
+  document.getElementById("modal-name").textContent  = name;
+  document.getElementById("modal-price").textContent = fmt(p.price);
+  document.getElementById("modal-desc").textContent  = desc || "—";
+  document.getElementById("product-modal").classList.add("open");
+}
+
+function closeModal(e) {
+  // Faqat overlay'ning o'ziga bosishda yopilsin (sheet ichiga emas)
+  if (e.target === document.getElementById("product-modal")) {
+    document.getElementById("product-modal").classList.remove("open");
+  }
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
