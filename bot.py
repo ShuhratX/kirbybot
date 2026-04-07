@@ -195,6 +195,7 @@ async def show_main_menu(msg: Message, lang: str) -> None:
         f"?lang={lang}"
         f"&card={quote(PAYMENT_CARD)}"
         f"&owner={quote(PAYMENT_OWNER)}"
+        f"&products={quote(products_b64)}"
     )
 
     rows = [

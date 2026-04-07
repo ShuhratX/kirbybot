@@ -474,10 +474,19 @@ const TX = {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 async function boot() {
   try {
-    const res = await fetch("products.json?t=" + Date.now()); // cache bypass
+    const res = await fetch("products.json?t=" + Date.now(), {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" }
+    });
+    if (!res.ok) throw new Error("not found");
     PRODUCTS = await res.json();
   } catch {
-    PRODUCTS = [];
+    try {
+      const _raw = new URLSearchParams(window.location.search).get("products");
+      PRODUCTS = _raw ? JSON.parse(atob(_raw)) : [];
+    } catch {
+      PRODUCTS = [];
+    }
   }
   document.getElementById("step-loading").style.display = "none";
   applyLang();
