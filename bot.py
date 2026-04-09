@@ -205,6 +205,7 @@ async def show_main_menu(msg: Message, lang: str) -> None:
     if is_admin:
         rows.insert(1, [KeyboardButton(text="⚙️ Admin")])
 
+
     await msg.answer(
         t(lang, "main_menu"),
         reply_markup=ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True),
@@ -414,6 +415,7 @@ async def handle_screenshot(msg: Message, bot: Bot, state: FSMContext) -> None:
         f"📞 {data.get('phone', '—')}\n"
         f"{items_lines}"
         f"💰 Jami: <b>{data.get('total', 0):,.0f} so'm</b>\n"
+        f"📅 Muddat: {data.get('duration', '—')}\n"
         f"💬 Izoh: {data.get('comment') or '—'}"
     )
 

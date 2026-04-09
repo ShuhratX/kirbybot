@@ -263,6 +263,61 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   display: flex; align-items: center; justify-content: center;
 }
 .modal-sheet { position: relative; }
+
+/* ── Qo'llanmalar ── */
+.lessons-grid {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.lesson-card {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px;
+  cursor: pointer; text-decoration: none; color: inherit;
+  transition: border-color .2s, box-shadow .2s, transform .15s;
+  -webkit-tap-highlight-color: transparent;
+  position: relative; overflow: hidden;
+}
+.lesson-card::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(14,165,233,.07) 0%, transparent 60%);
+  opacity: 0; transition: opacity .2s;
+}
+.lesson-card:active { transform: scale(.985); border-color: var(--accent); }
+.lesson-card:active::before { opacity: 1; }
+.lesson-thumb {
+  width: 54px; height: 54px; border-radius: 12px;
+  background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; position: relative;
+}
+.lesson-thumb .play-badge {
+  position: absolute; bottom: -4px; right: -4px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #ef4444; display: flex; align-items: center; justify-content: center;
+  font-size: .55rem; color: #fff; font-weight: 900;
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
+}
+.lesson-info { flex: 1; min-width: 0; }
+.lesson-title { font-size: .9rem; font-weight: 700; line-height: 1.3; margin-bottom: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lesson-meta { font-size: .75rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.lesson-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--border); }
+.lesson-yt-badge {
+  background: #ef4444; color: #fff; font-size: .65rem; font-weight: 700;
+  padding: 2px 7px; border-radius: 5px; white-space: nowrap; flex-shrink: 0;
+  display: flex; align-items: center; gap: 3px;
+}
+.lesson-arrow {
+  color: var(--muted); font-size: .85rem; flex-shrink: 0; margin-left: 4px;
+}
+.lessons-header {
+  display: flex; align-items: center; gap: 10px;
+  background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);
+  border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px; color: #fff;
+}
+.lessons-header-icon { font-size: 2rem; }
+.lessons-header-text .lh-title { font-size: 1rem; font-weight: 700; }
+.lessons-header-text .lh-sub { font-size: .78rem; opacity: .85; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -282,6 +337,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
     <div class="tab-bar">
       <button class="tab active" id="tab-products" onclick="switchTab('products')"></button>
       <button class="tab" id="tab-texosmotr" onclick="switchTab('texosmotr')"></button>
+      <button class="tab" id="tab-lessons" onclick="switchTab('lessons')"></button>
     </div>
     <div id="panel-products">
       <div class="grid" id="products-grid"></div>
@@ -293,6 +349,16 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
         <div class="tex-desc" id="tex-desc"></div>
         <button class="btn-primary tex-btn" id="tex-btn"></button>
       </div>
+    </div>
+    <div id="panel-lessons" style="display:none">
+      <div class="lessons-header">
+        <div class="lessons-header-icon">🎓</div>
+        <div class="lessons-header-text">
+          <div class="lh-title" id="lh-title">Qo'llanmalar</div>
+          <div class="lh-sub" id="lh-sub">YouTube darslar to'plami</div>
+        </div>
+      </div>
+      <div class="lessons-grid" id="lessons-grid"></div>
     </div>
     <div class="bottom-pad"></div>
   </div>
@@ -450,9 +516,9 @@ const TX = {
     dur_next: "→ To'lovga o'tish",
     err_duration: "Muddatni tanlang",
     days: [
-      { val: "1 kun",  sub: "Bir kunda yetkazish" },
-      { val: "3 kun",  sub: "Uch kun ichida yetkazish" },
-      { val: "5 kun",  sub: "Besh kun ichida yetkazish" },
+      { val: "1 kun",  sub: "Toshkent shahrida" },
+      { val: "3 kun",  sub: "O'zb bo'ylab yetkazish" },
+      { val: "5 kun",  sub: "O'zi olib ketish" },
     ],
     payment: "To'lov", copy: "Nusxa olish", copied: "Nusxalandi!",
     screenshot: "To'lov skrinshoti", screenshot_hint: "Rasmni tanlash uchun bosing",
@@ -467,10 +533,14 @@ const TX = {
     lang_switch: "RU",
     tab_products: "Mahsulotlar",
     tab_texosmotr: "Texosmotr",
+    tab_lessons: "Qo'llanmalar",
     tex_title: "Texnik ko'rik",
     tex_desc: "Texnik ko'rik uchun buyurtma bering",
     tex_btn: "Buyurtma berish",
     tex_order_type: "texosmotr",
+    lessons_title: "Qo'llanmalar",
+    lessons_sub: "YouTube darslar to'plami",
+    lessons_watch: "Tomosha qilish",
   },
   ru: {
     title: "Товары", cart: "Корзина", total: "Итого:",
@@ -501,10 +571,14 @@ const TX = {
     lang_switch: "UZ",
     tab_products: "Товары",
     tab_texosmotr: "Техосмотр",
+    tab_lessons: "Уроки",
     tex_title: "Техосмотр",
     tex_desc: "Оформите заявку на технический осмотр",
     tex_btn: "Оформить заявку",
     tex_order_type: "texosmotr",
+    lessons_title: "Уроки",
+    lessons_sub: "Коллекция видео на YouTube",
+    lessons_watch: "Смотреть",
   }
 };
 
@@ -534,6 +608,8 @@ async function boot() {
 // ── Lang ──────────────────────────────────────────────────────────────────────
 function toggleLang() {
   LANG = LANG === "uz" ? "ru" : "uz";
+  const grid = document.getElementById("lessons-grid");
+  if (grid) delete grid.dataset.rendered;
   applyLang();
   renderProducts();
 }
@@ -566,9 +642,12 @@ function applyLang() {
   setText("cb-label",      T.cart);
   setText("tab-products",  T.tab_products);
   setText("tab-texosmotr", T.tab_texosmotr);
+  setText("tab-lessons",   T.tab_lessons);
   setText("tex-title",     T.tex_title);
   setText("tex-desc",      T.tex_desc);
   setText("tex-btn",       T.tex_btn);
+  setText("lh-title",      T.lessons_title);
+  setText("lh-sub",        T.lessons_sub);
   document.getElementById("inp-phone").placeholder   = "90 123 45 67";
   document.getElementById("inp-comment").placeholder = T.comment_ph;
   updateCartBar();
@@ -626,9 +705,87 @@ function closeModal(e) {
 function switchTab(tab) {
   document.getElementById("panel-products").style.display  = tab === "products"  ? "" : "none";
   document.getElementById("panel-texosmotr").style.display = tab === "texosmotr" ? "" : "none";
+  document.getElementById("panel-lessons").style.display   = tab === "lessons"   ? "" : "none";
   document.getElementById("tab-products").classList.toggle("active",  tab === "products");
   document.getElementById("tab-texosmotr").classList.toggle("active", tab === "texosmotr");
+  document.getElementById("tab-lessons").classList.toggle("active",   tab === "lessons");
   if (tab === "products") window._orderMode = "product";
+  if (tab === "lessons")  renderLessons();
+}
+
+// ── Lessons data ──────────────────────────────────────────────────────────────
+const LESSONS = [
+  {
+    emoji: "🚗",
+    title_uz: "Texnik ko'rik nima va qanday o'tkaziladi?",
+    title_ru: "Что такое техосмотр и как он проходит?",
+    url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  },
+  {
+    emoji: "🔧",
+    title_uz: "Dvigatel moyini o'zgartirish bo'yicha qo'llanma",
+    title_ru: "Руководство по замене масла в двигателе",
+    url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  },
+  {
+    emoji: "🛞",
+    title_uz: "Shinalarni almashtirish va tekislash",
+    title_ru: "Замена и балансировка шин",
+    url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  },
+  {
+    emoji: "💡",
+    title_uz: "Avtomobil faralarini sozlash",
+    title_ru: "Регулировка автомобильных фар",
+    url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  },
+  {
+    emoji: "🔋",
+    title_uz: "Akkumulyator tekshirish va almashtirish",
+    title_ru: "Проверка и замена аккумулятора",
+    url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  },
+  {
+    emoji: "🛑",
+    title_uz: "Tormoz tizimini tekshirish",
+    title_ru: "Проверка тормозной системы",
+    url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  },
+];
+
+function renderLessons() {
+  const grid = document.getElementById("lessons-grid");
+  if (grid.dataset.rendered === LANG) return; // cache
+  grid.dataset.rendered = LANG;
+  grid.innerHTML = "";
+  LESSONS.forEach((l, i) => {
+    const title = LANG === "ru" ? l.title_ru : l.title_uz;
+    const a = document.createElement("a");
+    a.className = "lesson-card";
+    a.href      = l.url;
+    a.target    = "_blank";
+    a.rel       = "noopener noreferrer";
+    a.style.animationDelay = (i * 60) + "ms";
+    a.innerHTML = `
+      <div class="lesson-thumb">
+        <span>${l.emoji}</span>
+        <div class="play-badge">▶</div>
+      </div>
+      <div class="lesson-info">
+        <div class="lesson-title">${esc(title)}</div>
+        <div class="lesson-meta">
+          <span>${esc(meta)}</span>
+        </div>
+      </div>
+      <div class="lesson-yt-badge">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2C0 8.1 0 12 0 12s0 3.9.5 5.8a3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1C24 15.9 24 12 24 12s0-3.9-.5-5.8zM9.8 15.5V8.5l6.2 3.5-6.2 3.5z"/>
+        </svg>
+        YouTube
+      </div>
+      <div class="lesson-arrow">›</div>`;
+    grid.appendChild(a);
+  });
 }
 
 function startTexosmotr() {
