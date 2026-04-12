@@ -444,7 +444,6 @@ async def handle_screenshot(msg: Message, bot: Bot, state: FSMContext) -> None:
     PICKUP_LON = 69.322792
     PICKUP_DURATIONS = {"5 kun"}  # "O'zi olib ketish" variantlari
 
-    # handle_screenshot ichida, msg.answer(t(lang, "order_received")) dan OLDIN:
     if data.get("duration") in PICKUP_DURATIONS:
         try:
             await bot.send_location(
