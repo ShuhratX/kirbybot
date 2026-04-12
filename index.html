@@ -757,21 +757,16 @@ const LESSONS = [
 
 function renderLessons() {
   const grid = document.getElementById("lessons-grid");
-  if (grid.dataset.rendered === LANG) return; // cache
+  if (grid.dataset.rendered === LANG) return;
   grid.dataset.rendered = LANG;
   grid.innerHTML = "";
   LESSONS.forEach((l, i) => {
     const title = LANG === "ru" ? l.title_ru : l.title_uz;
-    const a = document.createElement("a");
-    a.className = "lesson-card";
-    a.href = "#";
-    a.onclick = (e) => {
-      e.preventDefault();
-      if (tg) tg.openLink(l.url);
-      else window.open(l.url, "_blank");
-    };
-    a.style.animationDelay = (i * 60) + "ms";
-    a.innerHTML = `
+    const div = document.createElement("div");
+    div.className = "lesson-card";
+    div.style.animationDelay = (i * 60) + "ms";
+    div.onclick = () => tg ? tg.openLink(l.url) : window.open(l.url, "_blank");
+    div.innerHTML = `
       <div class="lesson-thumb">
         <span>${l.emoji}</span>
         <div class="play-badge">▶</div>
@@ -786,7 +781,7 @@ function renderLessons() {
         YouTube
       </div>
       <div class="lesson-arrow">›</div>`;
-    grid.appendChild(a);
+    grid.appendChild(div);
   });
 }
 
