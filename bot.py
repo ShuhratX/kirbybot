@@ -203,7 +203,8 @@ async def show_main_menu(msg: Message, lang: str) -> None:
         [KeyboardButton(text=t(lang, "change_lang"))],
     ]
     if is_admin:
-        rows.insert(1, [KeyboardButton(text="⚙️ Admin")])
+        rows.pop(0)
+        rows.insert(0, [KeyboardButton(text="⚙️ Admin")])
 
 
     await msg.answer(
@@ -439,7 +440,24 @@ async def handle_screenshot(msg: Message, bot: Bot, state: FSMContext) -> None:
                 )
         except Exception as e:
             log.error("send_photo/location to %s failed: %s", target, e)
+    PICKUP_LAT = 41.336943
+    PICKUP_LON = 69.322792
+    PICKUP_DURATIONS = {"5 kun"}  # "O'zi olib ketish" variantlari
 
+    # handle_screenshot ichida, msg.answer(t(lang, "order_received")) dan OLDIN:
+    if data.get("duration") in PICKUP_DURATIONS:
+        try:
+            await bot.send_location(
+                chat_id=msg.from_user.id,
+                latitude=PICKUP_LAT,
+                longitude=PICKUP_LON,
+            )
+            await bot.send_message(
+                chat_id=msg.from_user.id,
+                text="📍 Do'konimizning manzili — yuqoridagi lokatsiya. Buyurtmangizni shu joydan olib ketishingiz mumkin.",
+            )
+        except Exception as e:
+            log.error("Pickup location send failed: %s", e)
     await msg.answer(t(lang, "order_received"))
 
 

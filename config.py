@@ -23,3 +23,5 @@ GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
 GITHUB_REPO: str = os.getenv("GITHUB_REPO", "")  # "username/repo"
 GITHUB_BRANCH: str = os.getenv("GITHUB_BRANCH", "gh-pages")
 GITHUB_FILE: str = os.getenv("GITHUB_FILE", "products.json")
+PICKUP_LAT: float = float(os.getenv("PICKUP_LAT", "41.336943"))
+PICKUP_LON: float = float(os.getenv("PICKUP_LON", "69.322792"))
