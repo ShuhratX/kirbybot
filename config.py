@@ -7,6 +7,8 @@ BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
 GROUP_ID: int = int(os.getenv("GROUP_ID", "-1001234567890"))
 WEBAPP_URL: str = os.getenv("WEBAPP_URL", "https://username.github.io/repo")
 
+API_KEY="25ecdc69a2d265289cffcaf12f73e9f1"
+
 ADMIN_IDS: list[int] = [
     int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()
 ]

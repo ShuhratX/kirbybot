@@ -211,3 +211,71 @@ async def report_by_range(date_from: str, date_to: str) -> list[dict]:
         )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
+
+
+async def get_product_by_id(product_id: int) -> dict | None:
+    """ID bo'yicha bitta mahsulotni qaytaradi."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+                "SELECT * FROM products WHERE id = ?", (product_id,)
+        ) as cur:
+            row = await cur.fetchone()
+    return dict(row) if row else None
+
+
+async def create_product(data: dict) -> int:
+    """
+    Yangi mahsulot yaratadi.
+    data keys: name_uz, name_ru, desc_uz, desc_ru, price, image_url, is_active
+    Qaytaradi: yangi mahsulot id si
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            """
+            INSERT INTO products
+                (name_uz, name_ru, desc_uz, desc_ru, price, image_url, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                data["name_uz"],
+                data["name_ru"],
+                data["desc_uz"],
+                data["desc_ru"],
+                float(data["price"]),
+                data.get("image_url"),
+                int(data.get("is_active", 1)),
+            ),
+        )
+        await db.commit()
+    return cur.lastrowid
+
+
+async def update_product_field(product_id: int, field: str, value) -> None:
+    """
+    Bitta fieldni yangilaydi.
+    SQL injection xavfi yo'q: field whitelist orqali tekshiriladi.
+    """
+    ALLOWED_FIELDS = {"name_uz", "name_ru", "desc_uz", "desc_ru", "price", "image_url"}
+    if field not in ALLOWED_FIELDS:
+        raise ValueError(f"Ruxsat etilmagan field: {field}")
+
+    if field == "price":
+        value = float(value)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            f"UPDATE products SET {field} = ? WHERE id = ?",  # noqa: S608
+            (value, product_id),
+        )
+        await db.commit()
+
+
+async def delete_product(product_id: int) -> None:
+    """
+    Mahsulotni bazadan butunlay o'chiradi.
+    ESLATMA: Agar buyurtmalarda referans bo'lsa, avval tekshiring.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM products WHERE id = ?", (product_id,))
+        await db.commit()
