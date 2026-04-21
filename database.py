@@ -171,20 +171,6 @@ async def create_order(data: dict) -> int:
         return cursor.lastrowid
 
 
-async def monthly_report() -> dict:
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            """
-            SELECT COUNT(*) AS cnt, COALESCE(SUM(total), 0) AS revenue
-            FROM orders
-            WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')
-              AND status != 'cancelled'
-            """
-        )
-        row = await cursor.fetchone()
-        return {"cnt": row[0], "revenue": float(row[1])}
-
-
 async def report_by_range(date_from: str, date_to: str) -> list[dict]:
     """
     date_from, date_to: 'YYYY-MM-DD' formatida.

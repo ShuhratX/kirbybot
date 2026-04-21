@@ -583,19 +583,15 @@ const TX = {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 async function boot() {
   try {
-    const res = await fetch("products.json?t=" + Date.now(), {
+    const res = await fetch("/api/products", {
       cache: "no-store",
       headers: { "Cache-Control": "no-cache" }
     });
-    if (!res.ok) throw new Error("not found");
+    if (!res.ok) throw new Error("api error " + res.status);
     PRODUCTS = await res.json();
-  } catch {
-    try {
-      const _raw = new URLSearchParams(window.location.search).get("products");
-      PRODUCTS = _raw ? JSON.parse(atob(_raw)) : [];
-    } catch {
-      PRODUCTS = [];
-    }
+  } catch (e) {
+    console.error("Products load failed:", e);
+    PRODUCTS = [];
   }
   document.getElementById("step-loading").style.display = "none";
   applyLang();

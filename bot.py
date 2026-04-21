@@ -1,5 +1,4 @@
 import asyncio
-import base64
 import json
 import logging
 import re
@@ -23,15 +22,16 @@ from aiogram.types import (
     WebAppInfo, BufferedInputFile,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiohttp import web
 
+from api import make_app
 from config import (
-    ADMIN_IDS, BOT_TOKEN, GITHUB_BRANCH, GITHUB_FILE,
-    GITHUB_REPO, GITHUB_TOKEN, GROUP_ID, PAYMENT_CARD,
-    PAYMENT_OWNER, WEBAPP_URL, API_KEY,
+    ADMIN_IDS, BOT_TOKEN, GROUP_ID, PAYMENT_CARD,
+    PAYMENT_OWNER, WEBAPP_URL, API_KEY, PICKUP_LAT, PICKUP_LON,
 )
 from database import (
     create_order, get_products, get_user,
-    init_db, monthly_report, toggle_product, upsert_user, report_by_range,
+    init_db, toggle_product, upsert_user, report_by_range,
     get_product_by_id, create_product, update_product_field, delete_product,
 )
 from report_excel import build_report
@@ -91,67 +91,6 @@ async def _upload_to_imgbb(bot: Bot, file_id: str) -> str | None:
     except Exception as e:
         log.error("ImgBB upload exception: %s", e)
         return None
-
-
-# ── GitHub Pages push ─────────────────────────────────────────────────────────
-
-async def push_products_json() -> bool:
-    """
-    Fetch active products from DB and push products.json to GitHub Pages branch.
-    Returns True on success, False on failure.
-    """
-    products = await get_products(active_only=True)
-    content = json.dumps(products, ensure_ascii=False, indent=2)
-
-    # 1. Lokal fayl
-    try:
-        with open("products.json", "w", encoding="utf-8") as f:
-            f.write(content)
-        log.info("products.json updated locally")
-    except Exception as e:
-        log.error("Local products.json write failed: %s", e)
-
-    # 2. GitHub (agar credentials bo'lsa)
-    if not GITHUB_TOKEN or not GITHUB_REPO:
-        log.warning("GitHub credentials not configured — skipping push")
-        return True  # lokal muvaffaqiyatli bo'lsa yetarli
-
-    b64 = base64.b64encode(content.encode()).decode()
-    api_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE}"
-    headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            sha = None
-            async with session.get(
-                    api_url, headers=headers, params={"ref": GITHUB_BRANCH}
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    sha = data.get("sha")
-
-            payload: dict = {
-                "message": "chore: update products.json",
-                "content": b64,
-                "branch": GITHUB_BRANCH,
-            }
-            if sha:
-                payload["sha"] = sha
-
-            async with session.put(api_url, headers=headers, json=payload) as resp:
-                if resp.status in (200, 201):
-                    log.info("products.json pushed to GitHub Pages")
-                else:
-                    body = await resp.text()
-                    log.error("GitHub push failed: %s | %s", resp.status, body)
-    except Exception as e:
-        log.error("GitHub push exception: %s", e)
-
-    return True
 
 
 # ── Keyboards ─────────────────────────────────────────────────────────────────
@@ -224,18 +163,11 @@ async def show_main_menu(msg: Message, lang: str) -> None:
     user_id = msg.from_user.id
     is_admin = user_id in ADMIN_IDS
 
-    # DB dan faqat aktiv mahsulotlarni ol
-    products = await get_products(active_only=True)
-    products_b64 = base64.b64encode(
-        json.dumps(products, ensure_ascii=False).encode()
-    ).decode()
-
     webapp_url = (
         f"{WEBAPP_URL}"
         f"?lang={lang}"
         f"&card={quote(PAYMENT_CARD)}"
         f"&owner={quote(PAYMENT_OWNER)}"
-        f"&products={quote(products_b64)}"
     )
 
     rows = [
@@ -245,7 +177,6 @@ async def show_main_menu(msg: Message, lang: str) -> None:
     if is_admin:
         rows.pop(0)
         rows.insert(0, [KeyboardButton(text="⚙️ Admin")])
-
 
     await msg.answer(
         t(lang, "main_menu"),
@@ -294,10 +225,8 @@ async def cb_toggle(cb: CallbackQuery) -> None:
     # Push updated products.json to GitHub Pages
     user = await get_user(cb.from_user.id)
     lang = user["lang"] if user else "uz"
-    ok = await push_products_json()
     status_txt = "faollashtirildi ✅" if new_state else "o'chirildi ❌"
-    push_txt   = "" if ok else " (GitHub push muvaffaqiyatsiz ⚠️)"
-    await cb.answer(f"Mahsulot {status_txt}{push_txt}")
+    await cb.answer(f"Mahsulot {status_txt}")
     await cb.message.edit_reply_markup(reply_markup=await _products_kb(lang=lang))
 
 
@@ -466,8 +395,7 @@ async def handle_screenshot(msg: Message, bot: Bot, state: FSMContext) -> None:
                 )
         except Exception as e:
             log.error("send_photo/location to %s failed: %s", target, e)
-    PICKUP_LAT = 41.336943
-    PICKUP_LON = 69.322792
+
     PICKUP_DURATIONS = {"5 kun"}  # "O'zi olib ketish" variantlari
 
     if data.get("duration") in PICKUP_DURATIONS:
@@ -756,7 +684,6 @@ async def cb_prod_toggle(cb: CallbackQuery, callback_data: ProdCB) -> None:
         await cb.answer(str(e), show_alert=True)
         return
 
-    await push_products_json()
     status_txt = "faollashtirildi ✅" if new_state else "o'chirildi ❌"
     await cb.answer(f"Mahsulot {status_txt}")
 
@@ -803,7 +730,6 @@ async def cb_prod_confirm_del(cb: CallbackQuery, callback_data: ProdCB) -> None:
         await cb.answer("Ruxsat yo'q", show_alert=True)
         return
     await delete_product(callback_data.pid)
-    await push_products_json()
     await cb.answer("Mahsulot o'chirildi ✅")
     await cb.message.edit_text(
         "📦 <b>Mahsulotlar boshqaruvi</b>\nMahsulotni tanlang yoki yangi qo'shing:",
@@ -953,7 +879,6 @@ async def add_image(msg: Message, bot: Bot, state: FSMContext) -> None:
             await msg.answer("❌ Xatolik yuz berdi.")
             return
 
-        await push_products_json()
         await msg.answer(
             f"✅ Mahsulot <b>#{new_id}</b> qo'shildi!\n🖼 {image_val or '—'}",
             parse_mode="HTML",
@@ -1018,8 +943,6 @@ async def _finish_field_edit(msg: Message, state: FSMContext, field: str, value)
         await msg.answer("❌ Xatolik yuz berdi.")
         return
 
-    await push_products_json()
-
     product = await get_product_by_id(pid)
     if not product:
         await msg.answer("✅ Yangilandi.")
@@ -1044,12 +967,20 @@ async def _finish_field_edit(msg: Message, state: FSMContext, field: str, value)
 
 async def main() -> None:
     await init_db()
-    await push_products_json()
     bot = Bot(token=BOT_TOKEN)
-    dp  = Dispatcher(storage=MemoryStorage())
+    dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
+
+    # aiohttp server va aiogram polling parallel ishga tushadi
+    runner = web.AppRunner(make_app())
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 8080)
+    await site.start()
+    log.info("API server: http://127.0.0.1:8080")
+
     log.info("Bot starting…")
     await dp.start_polling(bot, skip_updates=True)
+    await runner.cleanup()
 
 
 if __name__ == "__main__":

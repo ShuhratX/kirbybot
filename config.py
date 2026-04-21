@@ -5,7 +5,7 @@ load_dotenv()
 
 BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
 GROUP_ID: int = int(os.getenv("GROUP_ID", "-1001234567890"))
-WEBAPP_URL: str = os.getenv("WEBAPP_URL", "https://username.github.io/repo")
+WEBAPP_URL: str = os.getenv("WEBAPP_URL", "https://abuismoil-ibnisroil.uz")
 
 API_KEY="25ecdc69a2d265289cffcaf12f73e9f1"
 
@@ -21,9 +21,5 @@ DB_PATH: str = os.getenv("DB_PATH", "orders.db")
 
 # GitHub API — pushes products.json to GitHub Pages branch
 # Token needs 'repo' (or 'contents: write') scope
-GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
-GITHUB_REPO: str = os.getenv("GITHUB_REPO", "")  # "username/repo"
-GITHUB_BRANCH: str = os.getenv("GITHUB_BRANCH", "gh-pages")
-GITHUB_FILE: str = os.getenv("GITHUB_FILE", "products.json")
 PICKUP_LAT: float = float(os.getenv("PICKUP_LAT", "41.336943"))
 PICKUP_LON: float = float(os.getenv("PICKUP_LON", "69.322792"))
