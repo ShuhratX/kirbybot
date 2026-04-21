@@ -160,7 +160,7 @@ async def reg_name(msg: Message, state: FSMContext) -> None:
 # ── Main menu ─────────────────────────────────────────────────────────────────
 
 async def show_main_menu(msg: Message, lang: str) -> None:
-    user_id = msg.from_user.id
+    user_id = msg.from_user.id if msg.from_user else msg.chat.id
     is_admin = user_id in ADMIN_IDS
 
     webapp_url = (
@@ -170,13 +170,16 @@ async def show_main_menu(msg: Message, lang: str) -> None:
         f"&owner={quote(PAYMENT_OWNER)}"
     )
 
-    rows = [
-        [KeyboardButton(text=t(lang, "order_btn"), web_app=WebAppInfo(url=webapp_url))],
-        [KeyboardButton(text=t(lang, "change_lang"))],
-    ]
+    rows = []
+
     if is_admin:
-        rows.pop(0)
-        rows.insert(0, [KeyboardButton(text="⚙️ Admin")])
+        # Adminlar uchun: Faqat Admin paneli va Tilni o'zgartirish
+        rows.append([KeyboardButton(text="⚙️ Admin")])
+        rows.append([KeyboardButton(text=t(lang, "change_lang"))])
+    else:
+        # Oddiy foydalanuvchilar uchun: Buyurtma berish va Tilni o'zgartirish
+        rows.append([KeyboardButton(text=t(lang, "order_btn"), web_app=WebAppInfo(url=webapp_url))])
+        rows.append([KeyboardButton(text=t(lang, "change_lang"))])
 
     await msg.answer(
         t(lang, "main_menu"),
