@@ -20,3 +20,6 @@ def make_app() -> web.Application:
     app = web.Application()
     app.router.add_get("/api/products", handle_products)
     return app
+
+if __name__ == "__main__":
+    web.run_app(make_app(), host="127.0.0.1", port=8000)
