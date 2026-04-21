@@ -971,16 +971,8 @@ async def main() -> None:
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
 
-    # aiohttp server va aiogram polling parallel ishga tushadi
-    runner = web.AppRunner(make_app())
-    await runner.setup()
-    site = web.TCPSite(runner, "127.0.0.1", 8080)
-    await site.start()
-    log.info("API server: http://127.0.0.1:8080")
-
     log.info("Bot starting…")
     await dp.start_polling(bot, skip_updates=True)
-    await runner.cleanup()
 
 
 if __name__ == "__main__":
