@@ -159,9 +159,14 @@ async def reg_name(msg: Message, state: FSMContext) -> None:
 
 # ── Main menu ─────────────────────────────────────────────────────────────────
 
-async def show_main_menu(msg: Message, lang: str) -> None:
-    user_id = msg.from_user.id if msg.from_user else msg.chat.id
-    is_admin = user_id in ADMIN_IDS
+async def show_main_menu(event: Message | CallbackQuery, lang: str) -> None:
+    # Agar event CallbackQuery bo'lsa, uning ichidagi xabarni (message) olamiz
+    # Agar Message bo'lsa, o'zini ishlatamiz
+    msg = event.message if isinstance(event, CallbackQuery) else event
+    user_id = event.from_user.id # Har ikkala ob'ektda ham from_user bor
+
+    # Adminligini qat'iy tekshirish
+    is_admin = int(user_id) in [int(aid) for aid in ADMIN_IDS]
 
     webapp_url = (
         f"{WEBAPP_URL}"
@@ -171,16 +176,16 @@ async def show_main_menu(msg: Message, lang: str) -> None:
     )
 
     rows = []
-
     if is_admin:
-        # Adminlar uchun: Faqat Admin paneli va Tilni o'zgartirish
+        # Admin uchun faqat admin tugmalari
         rows.append([KeyboardButton(text="⚙️ Admin")])
         rows.append([KeyboardButton(text=t(lang, "change_lang"))])
     else:
-        # Oddiy foydalanuvchilar uchun: Buyurtma berish va Tilni o'zgartirish
+        # Oddiy foydalanuvchi uchun buyurtma tugmasi
         rows.append([KeyboardButton(text=t(lang, "order_btn"), web_app=WebAppInfo(url=webapp_url))])
         rows.append([KeyboardButton(text=t(lang, "change_lang"))])
 
+    # msg.answer har doim xabar yuboradi
     await msg.answer(
         t(lang, "main_menu"),
         reply_markup=ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True),
@@ -198,10 +203,14 @@ async def change_lang(msg: Message, state: FSMContext) -> None:
 @router.callback_query(Reg.lang, F.data.startswith("clang:"))
 async def cb_lang_change(cb: CallbackQuery, state: FSMContext) -> None:
     lang = cb.data.split(":")[1]
-    await upsert_user(cb.from_user.id, lang=lang)
+    await upsert_user(cb.from_user.id, lang=lang)  #
     await state.clear()
-    await cb.message.edit_reply_markup(reply_markup=None)
-    await show_main_menu(cb.message, lang)
+
+    # Eski xabarni (til tanlash tugmalarini) o'chirib yuboramiz
+    await cb.message.delete()
+
+    # cb ob'ektini funksiyaga uzatamiz
+    await show_main_menu(cb, lang)
     await cb.answer()
 
 
