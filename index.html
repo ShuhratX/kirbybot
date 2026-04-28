@@ -737,7 +737,10 @@ function renderLessons() {
     const div = document.createElement("div");
     div.className = "lesson-card";
     div.style.animationDelay = (i * 60) + "ms";
-    div.onclick = () => alert(LANG === "ru" ? "Скоро будет доступно!" : "Tez kunda!");
+    div.onclick = () => {
+      const msg = LANG === "ru" ? "Скоро будет доступно!" : "Tez kunda!";
+      tg ? tg.showAlert(msg) : showToast(msg);
+    };
     div.innerHTML = `
       <div class="lesson-thumb">
         <span>${l.emoji}</span>
