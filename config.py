@@ -13,8 +13,8 @@ ADMIN_IDS: list[int] = [
     int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()
 ]
 
-PAYMENT_CARD: str = os.getenv("PAYMENT_CARD", "8600 0000 0000 0000")
-PAYMENT_OWNER: str = os.getenv("PAYMENT_OWNER", "Ism Familiya")
+PAYMENT_CARD: str = os.getenv("PAYMENT_CARD", "8600 4929 6249 1920")
+PAYMENT_OWNER: str = os.getenv("PAYMENT_OWNER", "Satibaldiyeva Maloxat")
 
 # SQLite file path
 DB_PATH: str = os.getenv("DB_PATH", "orders.db")
