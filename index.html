@@ -210,6 +210,20 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 @keyframes spin { to { transform: rotate(360deg); } }
 .bottom-pad { height: 80px; }
 
+/* ── Toast (ogohlantirish) ── */
+.toast {
+  position: fixed; bottom: 90px; left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: #0f172a; color: #fff;
+  padding: 12px 18px; border-radius: 12px;
+  font-size: .85rem; font-weight: 600; line-height: 1.4;
+  z-index: 2000; max-width: 84%; text-align: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s, transform .25s;
+  box-shadow: 0 6px 24px rgba(0,0,0,.25);
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
 /* ── Tabs ── */
 .tab-bar { display: flex; background: #f1f5f9; border-radius: 12px; padding: 4px; gap: 4px; margin-bottom: 14px; }
 .tab { flex: 1; padding: 9px; border: none; border-radius: 9px; background: transparent;
@@ -528,6 +542,7 @@ const TX = {
     err_location:   "Joylashuvni belgilang",
     err_screenshot: "To'lov skrinshoti yuklang",
     err_cart:       "Savatga mahsulot qo'shing",
+    min_qty_warn:   "⚠️ Bu mahsulot kamida {n} tadan buyurtma qilinadi. Savatga {n} ta qo'shildi.",
     lang_switch: "RU",
     tab_products: "Mahsulotlar",
     tab_texosmotr: "Texosmotr",
@@ -566,6 +581,7 @@ const TX = {
     err_location:   "Укажите местоположение",
     err_screenshot: "Загрузите скриншот оплаты",
     err_cart:       "Добавьте товары в корзину",
+    min_qty_warn:   "⚠️ Этот товар заказывается минимум по {n} шт. В корзину добавлено {n} шт.",
     lang_switch: "UZ",
     tab_products: "Товары",
     tab_texosmotr: "Техосмотр",
@@ -767,11 +783,65 @@ function startTexosmotr() {
 }
 
 function chQty(id, delta) {
-  cart[id] = Math.max(0, (cart[id] || 0) + delta);
-  if (!cart[id]) delete cart[id];
+  const p   = PRODUCTS.find(x => x.id === Number(id));
+  const min = p ? minQtyFor(p) : 1;
+  const cur = cart[id] || 0;
+  let next;
+
+  if (delta > 0) {
+    // Birinchi marta qo'shilganda minimal miqdordan boshlanadi (xalta/remen — 2 ta)
+    if (cur === 0 && min > 1) {
+      next = min;
+      notifyMinQty(min);
+    } else {
+      next = cur + delta;
+    }
+  } else {
+    // Kamaytirish: minimal chegaradan pastga tushsa, butunlay olib tashlanadi
+    next = cur - 1;
+    if (min > 1 && next > 0 && next < min) next = 0;
+  }
+
+  if (next <= 0) delete cart[id];
+  else cart[id] = next;
+
   const el = document.getElementById("qty-" + id);
   if (el) el.textContent = cart[id] || 0;
   updateCartBar();
+}
+
+// ── Minimal buyurtma miqdori ────────────────────────────────────────────────
+// Xalta (filtr-xalta) va remen kamida 2 tadan buyurtma qilinadi.
+const MIN_ORDER_QTY = 2;
+
+function minQtyFor(p) {
+  const hay = `${p.name_uz || ""} ${p.name_ru || ""}`.toLowerCase();
+  const isBeltOrBag =
+    hay.includes("remen") || hay.includes("ремен") ||   // remen / ремень
+    hay.includes("xalta") || hay.includes("халта") ||   // xalta
+    hay.includes("мешок") || hay.includes("мешк");       // мешки
+  return isBeltOrBag ? MIN_ORDER_QTY : 1;
+}
+
+function notifyMinQty(min) {
+  const msg = TX[LANG].min_qty_warn.replace(/\{n\}/g, min);
+  if (tg && typeof tg.showAlert === "function") tg.showAlert(msg);
+  else showToast(msg);
+}
+
+// ── Toast (Telegram tashqarisida ham ishlaydi) ──────────────────────────────
+function showToast(msg) {
+  let t = document.getElementById("toast");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "toast";
+    t.className = "toast";
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 2800);
 }
 
 function cartTotal() {
