@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from datetime import date as Date
 from urllib.parse import quote
 
@@ -173,6 +174,7 @@ async def show_main_menu(event: Message | CallbackQuery, lang: str) -> None:
         f"?lang={lang}"
         f"&card={quote(PAYMENT_CARD)}"
         f"&owner={quote(PAYMENT_OWNER)}"
+        f"&v={int(time.time())}"  # cache-busting: Telegram eski HTML'ni keshlab qolmasligi uchun
     )
 
     rows = []
