@@ -9,10 +9,17 @@ database.py — aiosqlite-backed data layer.
 from __future__ import annotations
 
 import json
+import logging
+from pathlib import Path
 
 import aiosqlite
 
 from config import DB_PATH
+
+log = logging.getLogger(__name__)
+
+# Yangi baza yaratilganda mahsulotlar shu fayldan olinadi
+PRODUCTS_SEED_PATH = Path(__file__).resolve().parent / "products.json"
 
 
 # ── Init ──────────────────────────────────────────────────────────────────────
@@ -69,19 +76,39 @@ async def _create_schema(db: aiosqlite.Connection) -> None:
 
 
 async def _seed_products(db: aiosqlite.Connection) -> None:
+    """products jadvali bo'sh bo'lsa, products.json dagi mahsulotlar bilan to'ldiradi."""
     cursor = await db.execute("SELECT COUNT(*) FROM products")
     row = await cursor.fetchone()
     if row and row[0]:
         return
+
+    if not PRODUCTS_SEED_PATH.exists():
+        log.warning("Seed fayli topilmadi: %s — mahsulotlar qo'shilmadi", PRODUCTS_SEED_PATH)
+        return
+
+    items = json.loads(PRODUCTS_SEED_PATH.read_text(encoding="utf-8"))
+    rows = [
+        (
+            p.get("id"),
+            p["name_uz"],
+            p["name_ru"],
+            p.get("desc_uz"),
+            p.get("desc_ru"),
+            float(p["price"]),
+            p.get("image_url"),
+            int(p.get("is_active", 1)),
+        )
+        for p in items
+    ]
     await db.executemany(
-        "INSERT INTO products (name_uz, name_ru, desc_uz, desc_ru, price, image_url) VALUES (?,?,?,?,?,?)",
-        [
-            ("Mahsulot A", "Продукт A", "A mahsuloti haqida qisqacha tavsif.", "Краткое описание продукта A.", 50000, "https://placehold.co/300x200/0ea5e9/fff?text=A"),
-            ("Mahsulot B", "Продукт B", "B mahsuloti haqida qisqacha tavsif.", "Краткое описание продукта B.", 75000, "https://placehold.co/300x200/0284c7/fff?text=B"),
-            ("Mahsulot C", "Продукт C", "C mahsuloti haqida qisqacha tavsif.", "Краткое описание продукта C.", 120000, "https://placehold.co/300x200/0369a1/fff?text=C"),
-            ("Mahsulot D", "Продукт D", "D mahsuloti haqida qisqacha tavsif.", "Краткое описание продукта D.", 95000, "https://placehold.co/300x200/075985/fff?text=D"),
-        ],
+        """
+        INSERT INTO products
+            (id, name_uz, name_ru, desc_uz, desc_ru, price, image_url, is_active)
+        VALUES (?,?,?,?,?,?,?,?)
+        """,
+        rows,
     )
+    log.info("products.json dan %d ta mahsulot bazaga qo'shildi", len(rows))
 
 
 # ── Users ─────────────────────────────────────────────────────────────────────

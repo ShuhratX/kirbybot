@@ -3,3 +3,8 @@ env/
 __pycache__/
 *.pyc
 .env
+# SQLite baza — serverda yashaydi, gitga qo'shilmaydi
+orders.db
+orders.db-wal
+orders.db-shm
+*.db.bak*
